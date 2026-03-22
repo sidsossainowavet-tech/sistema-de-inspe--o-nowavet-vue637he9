@@ -19,6 +19,8 @@ export interface Facility {
   name: string
   description: string
   frequencyDays?: number
+  category?: string
+  managementTopics?: string[]
 }
 
 export interface Evaluator {

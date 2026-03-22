@@ -22,6 +22,7 @@ import {
 import { Edit, Trash2, Plus, QrCode, Download, Printer } from 'lucide-react'
 import { Facility } from '@/lib/types'
 import { toast } from 'sonner'
+import { FacilityBulkImport } from './FacilityBulkImport'
 
 export function FacilitiesManager() {
   const { facilities, setFacilities } = useAppContext()
@@ -30,6 +31,7 @@ export function FacilitiesManager() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('')
 
   const [qrFacility, setQrFacility] = useState<Facility | null>(null)
 
@@ -38,10 +40,12 @@ export function FacilitiesManager() {
       setEditing(f)
       setName(f.name)
       setDescription(f.description)
+      setCategory(f.category || '')
     } else {
       setEditing(null)
       setName('')
       setDescription('')
+      setCategory('')
     }
     setOpen(true)
   }
@@ -50,12 +54,14 @@ export function FacilitiesManager() {
     if (!name.trim()) return toast.error('Nome é obrigatório')
 
     if (editing) {
-      setFacilities(facilities.map((f) => (f.id === editing.id ? { ...f, name, description } : f)))
+      setFacilities(
+        facilities.map((f) => (f.id === editing.id ? { ...f, name, description, category } : f)),
+      )
       toast.success('Instalação atualizada')
     } else {
       setFacilities([
         ...facilities,
-        { id: Math.random().toString(36).substring(2), name, description },
+        { id: Math.random().toString(36).substring(2), name, description, category },
       ])
       toast.success('Instalação criada')
     }
@@ -129,39 +135,50 @@ export function FacilitiesManager() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Instalações / Estruturas</CardTitle>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" onClick={() => openDialog()}>
-              <Plus className="h-4 w-4 mr-2" /> Nova Instalação
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editing ? 'Editar Instalação' : 'Nova Instalação'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Nome da Estrutura *</Label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex: Galpão Principal"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Descrição / Localização</Label>
-                <Input
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ex: Área Norte"
-                />
-              </div>
-              <Button className="w-full" onClick={handleSave}>
-                Salvar Instalação
+        <div className="flex gap-2">
+          <FacilityBulkImport />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" onClick={() => openDialog()}>
+                <Plus className="h-4 w-4 mr-2" /> Nova Instalação
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editing ? 'Editar Instalação' : 'Nova Instalação'}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Nome da Estrutura *</Label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex: Galpão Principal"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Descrição / Localização</Label>
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Ex: Área Norte"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Categoria</Label>
+                  <Input
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="Ex: Armazenagem"
+                  />
+                </div>
+                <Button className="w-full" onClick={handleSave}>
+                  Salvar Instalação
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -169,13 +186,14 @@ export function FacilitiesManager() {
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Descrição</TableHead>
+              <TableHead>Categoria</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {facilities.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="text-center">
+                <TableCell colSpan={4} className="text-center">
                   Nenhuma instalação cadastrada.
                 </TableCell>
               </TableRow>
@@ -184,6 +202,15 @@ export function FacilitiesManager() {
                 <TableRow key={f.id}>
                   <TableCell className="font-medium">{f.name}</TableCell>
                   <TableCell>{f.description}</TableCell>
+                  <TableCell>
+                    {f.category ? (
+                      <span className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground ring-1 ring-inset ring-secondary-foreground/10">
+                        {f.category}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-2 justify-end">
                       <Button
