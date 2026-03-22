@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppContext } from '@/store/AppContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,7 +15,7 @@ import { ChecklistItemCard } from '@/components/ChecklistItemCard'
 import { QRScanner } from '@/components/QRScanner'
 import { Answer } from '@/lib/types'
 import { toast } from 'sonner'
-import { Save, QrCode } from 'lucide-react'
+import { Save, QrCode, CheckCircle2 } from 'lucide-react'
 
 export default function NewInspection() {
   const { items, facilities, evaluators, addInspection } = useAppContext()
@@ -28,6 +28,14 @@ export default function NewInspection() {
   const [type, setType] = useState<'Check-in' | 'Check-out'>('Check-in')
   const [answers, setAnswers] = useState<Record<string, Answer>>({})
   const [scannerOpen, setScannerOpen] = useState(false)
+  const [startTime, setStartTime] = useState<string | null>(null)
+  const [successData, setSuccessData] = useState<{ duration: number; ncs: number } | null>(null)
+
+  useEffect(() => {
+    if (facilityId && !startTime) {
+      setStartTime(new Date().toISOString())
+    }
+  }, [facilityId, startTime])
 
   const handleAnswerChange = (ans: Answer) => {
     setAnswers((prev) => ({ ...prev, [ans.itemId]: ans }))
@@ -69,15 +77,27 @@ export default function NewInspection() {
     const facility = facilities.find((f) => f.id === facilityId)
     const evaluator = evaluators.find((e) => e.id === evaluatorId)
 
+    const endTime = new Date().toISOString()
+    const durationSeconds = startTime
+      ? Math.floor((new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000)
+      : 0
+
+    const finalAnswers = Object.values(answers).filter((a) => a.status)
+    const ncs = finalAnswers.filter((a) => a.status === 'NC').length
+
     addInspection({
+      facilityId: facility?.id,
+      evaluatorId: evaluator?.id,
       structure: facility?.name || 'Desconhecido',
       type,
       inspector: evaluator?.name || 'Desconhecido',
-      answers: Object.values(answers).filter((a) => a.status),
+      answers: finalAnswers,
+      startTime,
+      endTime,
+      durationSeconds,
     })
 
-    toast.success('Inspeção salva com sucesso!')
-    navigate('/')
+    setSuccessData({ duration: durationSeconds, ncs })
   }
 
   const handleScan = (data: string) => {
@@ -101,6 +121,43 @@ export default function NewInspection() {
     } else {
       toast.error('Instalação não encontrada ou QR Code inválido.')
     }
+  }
+
+  if (successData) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center animate-fade-in-up">
+        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-2 shadow-sm">
+          <CheckCircle2 className="w-12 h-12" />
+        </div>
+        <h1 className="text-3xl font-bold text-primary">Inspeção Finalizada!</h1>
+        <p className="text-muted-foreground text-lg">Os dados foram salvos com sucesso.</p>
+
+        <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-6">
+          <Card className="bg-muted/50 border-none shadow-none">
+            <CardContent className="p-4 flex flex-col items-center justify-center">
+              <span className="text-sm text-muted-foreground mb-1">Tempo Gasto</span>
+              <span className="text-xl font-bold text-foreground">
+                {Math.floor(successData.duration / 60)}m {successData.duration % 60}s
+              </span>
+            </CardContent>
+          </Card>
+          <Card className="bg-muted/50 border-none shadow-none">
+            <CardContent className="p-4 flex flex-col items-center justify-center">
+              <span className="text-sm text-muted-foreground mb-1">Não Conformidades</span>
+              <span className="text-xl font-bold text-destructive">{successData.ncs}</span>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Button
+          onClick={() => navigate('/')}
+          className="mt-8 w-full max-w-sm shadow-elevation"
+          size="lg"
+        >
+          Voltar ao Início
+        </Button>
+      </div>
+    )
   }
 
   return (

@@ -18,6 +18,7 @@ export interface Facility {
   id: string
   name: string
   description: string
+  frequencyDays?: number
 }
 
 export interface Evaluator {
@@ -37,10 +38,15 @@ export interface Answer {
 
 export interface Inspection {
   id: string
+  facilityId?: string
+  evaluatorId?: string
   structure: string
   type: 'Check-in' | 'Check-out'
   answers: Answer[]
   date: string
+  startTime?: string
+  endTime?: string
+  durationSeconds?: number
   isSynced: boolean
   inspector: string
 }

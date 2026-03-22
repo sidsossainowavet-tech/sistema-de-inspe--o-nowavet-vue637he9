@@ -36,8 +36,8 @@ const defaultContacts: Contact[] = [
 ]
 
 const defaultFacilities: Facility[] = [
-  { id: 'f1', name: 'Galpão A', description: 'Armazenamento Principal' },
-  { id: 'f2', name: 'Laboratório 2', description: 'Área de Testes' },
+  { id: 'f1', name: 'Galpão A', description: 'Armazenamento Principal', frequencyDays: 7 },
+  { id: 'f2', name: 'Laboratório 2', description: 'Área de Testes', frequencyDays: 2 },
 ]
 
 const defaultEvaluators: Evaluator[] = [
@@ -56,6 +56,82 @@ const defaultProfile: UserProfile = {
   phone: '(11) 98888-7777',
   avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=12',
 }
+
+const defaultInspections: Inspection[] = [
+  {
+    id: 'i1',
+    facilityId: 'f1',
+    evaluatorId: 'e1',
+    structure: 'Galpão A',
+    type: 'Check-in',
+    date: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
+    startTime: new Date(Date.now() - 3 * 24 * 3600 * 1000 - 15 * 60000).toISOString(),
+    endTime: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
+    durationSeconds: 900,
+    isSynced: true,
+    inspector: 'Inspetor Padrão',
+    answers: [
+      { itemId: '1', status: 'C' },
+      {
+        itemId: '2',
+        status: 'NC',
+        justification: 'Lâmpada queimada na entrada principal',
+        photo: 'https://img.usecurling.com/p/200/200?q=broken%20light',
+      },
+      { itemId: '3', status: 'C' },
+      { itemId: '4', status: 'C' },
+      { itemId: '5', status: 'C' },
+    ],
+  },
+  {
+    id: 'i2',
+    facilityId: 'f1',
+    evaluatorId: 'e1',
+    structure: 'Galpão A',
+    type: 'Check-out',
+    date: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
+    startTime: new Date(Date.now() - 1 * 24 * 3600 * 1000 - 12 * 60000).toISOString(),
+    endTime: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
+    durationSeconds: 720,
+    isSynced: true,
+    inspector: 'Inspetor Padrão',
+    answers: [
+      { itemId: '1', status: 'C' },
+      {
+        itemId: '2',
+        status: 'NC',
+        justification: 'Lâmpada ainda não foi trocada',
+        photo: 'https://img.usecurling.com/p/200/200?q=broken%20light',
+      },
+      { itemId: '3', status: 'C' },
+      { itemId: '4', status: 'C' },
+      {
+        itemId: '5',
+        status: 'NC',
+        justification: 'Piso molhado perto da porta',
+        photo: 'https://img.usecurling.com/p/200/200?q=wet%20floor',
+      },
+    ],
+  },
+  {
+    id: 'i3',
+    facilityId: 'f2',
+    evaluatorId: 'e1',
+    structure: 'Laboratório 2',
+    type: 'Check-in',
+    date: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
+    startTime: new Date(Date.now() - 5 * 24 * 3600 * 1000 - 25 * 60000).toISOString(),
+    endTime: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
+    durationSeconds: 1500,
+    isSynced: true,
+    inspector: 'Inspetor Padrão',
+    answers: [
+      { itemId: '1', status: 'C' },
+      { itemId: '2', status: 'C' },
+      { itemId: '3', status: 'C' },
+    ],
+  },
+]
 
 const AppContext = createContext<AppState | null>(null)
 
@@ -82,7 +158,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [inspections, setInspections] = useState<Inspection[]>(() => {
     const saved = localStorage.getItem('nowavet_inspections')
-    return saved ? JSON.parse(saved) : []
+    return saved ? JSON.parse(saved) : defaultInspections
   })
 
   const [profile, setProfile] = useState<UserProfile>(() => {

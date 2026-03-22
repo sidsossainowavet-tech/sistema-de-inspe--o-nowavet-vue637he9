@@ -1,11 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, ClipboardCheck, Settings, User } from 'lucide-react'
+import { Home, ClipboardCheck, Settings, User, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { path: '/', label: 'Início', icon: Home },
-  { path: '/inspecao/nova', label: 'Nova Inspeção', icon: ClipboardCheck },
-  { path: '/configuracoes', label: 'Configurações', icon: Settings },
+  { path: '/inspecao/nova', label: 'Inspeção', icon: ClipboardCheck },
+  { path: '/qualidade', label: 'Qualidade', icon: Activity },
+  { path: '/configuracoes', label: 'Ajustes', icon: Settings },
   { path: '/perfil', label: 'Perfil', icon: User },
 ]
 

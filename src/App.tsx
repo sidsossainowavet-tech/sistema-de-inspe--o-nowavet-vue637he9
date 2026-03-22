@@ -8,6 +8,7 @@ import { AppProvider } from '@/store/AppContext'
 import Layout from './components/Layout'
 import Index from './pages/Index'
 import NewInspection from './pages/NewInspection'
+import QualityDashboard from './pages/QualityDashboard'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import PrintReport from './pages/PrintReport'
@@ -23,6 +24,7 @@ const App = () => (
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
             <Route path="/inspecao/nova" element={<NewInspection />} />
+            <Route path="/qualidade" element={<QualityDashboard />} />
             <Route path="/configuracoes" element={<Settings />} />
             <Route path="/perfil" element={<Profile />} />
           </Route>
