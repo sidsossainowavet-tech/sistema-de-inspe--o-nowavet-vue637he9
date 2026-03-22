@@ -11,8 +11,8 @@ import { Leaf } from 'lucide-react'
 export default function Login() {
   const { login, isAuthenticated } = useAppContext()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('inspetor@nowavet.com')
-  const [password, setPassword] = useState('admin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />
@@ -20,11 +20,19 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (login(email, password)) {
+
+    if (!email || !password) {
+      toast.error('Preencha todos os campos.')
+      return
+    }
+
+    const result = login(email, password)
+
+    if (result.success) {
       toast.success('Login efetuado com sucesso!')
       navigate('/')
     } else {
-      toast.error('Credenciais inválidas ou usuário inativo.')
+      toast.error(result.message || 'Credenciais inválidas.')
     }
   }
 
@@ -80,11 +88,6 @@ export default function Login() {
               Entrar no Sistema
             </Button>
           </form>
-          <div className="mt-6 text-center text-xs text-muted-foreground p-3 bg-muted/50 rounded-md border border-border/50">
-            <strong>Dica de acesso:</strong> <br />
-            E-mail: <code>inspetor@nowavet.com</code> <br />
-            Senha: <code>admin</code>
-          </div>
         </CardContent>
       </Card>
     </div>

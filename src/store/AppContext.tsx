@@ -8,7 +8,6 @@ import {
   Evaluator,
   UserAccount,
 } from '@/lib/types'
-import { toast } from 'sonner'
 
 interface AppState {
   items: ChecklistItem[]
@@ -26,7 +25,7 @@ interface AppState {
   isOnline: boolean
   isSyncing: boolean
   isAuthenticated: boolean
-  login: (email: string, pass: string) => boolean
+  login: (email: string, pass: string) => { success: boolean; message?: string }
   logout: () => void
   addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => void
   syncData: () => Promise<void>
@@ -201,10 +200,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('nowavet_auth', isAuthenticated.toString())
   }, [isAuthenticated])
 
-  const login = (email: string, pass: string): boolean => {
+  const login = (email: string, pass: string): { success: boolean; message?: string } => {
     const user = users.find((u) => u.email === email && u.password === pass)
     if (user) {
-      if (!user.active) return false
+      if (!user.active) {
+        return {
+          success: false,
+          message: 'Sua conta está inativa. Entre em contato com o administrador.',
+        }
+      }
       setProfile((prev) => ({
         ...prev,
         name: user.name,
@@ -213,9 +217,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         avatar: user.avatar || prev.avatar || '',
       }))
       setIsAuthenticated(true)
-      return true
+      return { success: true }
     }
-    return false
+    return { success: false, message: 'Credenciais inválidas.' }
   }
 
   const logout = () => {
