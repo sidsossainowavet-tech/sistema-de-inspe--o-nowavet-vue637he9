@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Home, ClipboardCheck, Settings, User, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAppContext } from '@/store/AppContext'
 
 const navItems = [
   { path: '/', label: 'Início', icon: Home },
@@ -12,11 +13,22 @@ const navItems = [
 
 export function DesktopSidebar() {
   const location = useLocation()
+  const { profile } = useAppContext()
+
+  const allowedNavItems = navItems.filter((item) => {
+    if (
+      profile.role !== 'admin' &&
+      (item.path === '/configuracoes' || item.path === '/qualidade')
+    ) {
+      return false
+    }
+    return true
+  })
 
   return (
     <aside className="hidden md:flex w-64 flex-col border-r bg-sidebar fixed left-0 top-16 bottom-0 z-30 print:hidden">
       <nav className="flex-1 space-y-2 p-4">
-        {navItems.map((item) => {
+        {allowedNavItems.map((item) => {
           const isActive = location.pathname === item.path
           return (
             <Link
@@ -41,11 +53,22 @@ export function DesktopSidebar() {
 
 export function BottomNav() {
   const location = useLocation()
+  const { profile } = useAppContext()
+
+  const allowedNavItems = navItems.filter((item) => {
+    if (
+      profile.role !== 'admin' &&
+      (item.path === '/configuracoes' || item.path === '/qualidade')
+    ) {
+      return false
+    }
+    return true
+  })
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t bg-background pb-safe print:hidden">
       <div className="flex h-16 items-center justify-around px-2">
-        {navItems.map((item) => {
+        {allowedNavItems.map((item) => {
           const isActive = location.pathname === item.path
           return (
             <Link

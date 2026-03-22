@@ -55,6 +55,7 @@ const defaultProfile: UserProfile = {
   email: 'inspetor@nowavet.com',
   phone: '(11) 98888-7777',
   avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=12',
+  role: 'admin',
 }
 
 const defaultInspections: Inspection[] = [
@@ -163,7 +164,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [profile, setProfile] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('nowavet_profile')
-    return saved ? JSON.parse(saved) : defaultProfile
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (!parsed.role) parsed.role = 'admin'
+      return parsed
+    }
+    return defaultProfile
   })
 
   const [isOnline, setIsOnline] = useState(navigator.onLine)

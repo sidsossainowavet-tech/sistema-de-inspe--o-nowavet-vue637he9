@@ -14,9 +14,10 @@ import { AlertCircle, Activity } from 'lucide-react'
 import { useMemo } from 'react'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { Navigate } from 'react-router-dom'
 
 export default function QualityDashboard() {
-  const { inspections, facilities, evaluators, items } = useAppContext()
+  const { profile, inspections, facilities, evaluators, items } = useAppContext()
 
   const missedInspections = useMemo(() => {
     return facilities
@@ -160,6 +161,10 @@ export default function QualityDashboard() {
 
     return { facChartData, evalChartData, timeVsItems }
   }, [inspections, facilities, evaluators])
+
+  if (profile.role !== 'admin') {
+    return <Navigate to="/" replace />
+  }
 
   return (
     <div className="space-y-6 pb-8">

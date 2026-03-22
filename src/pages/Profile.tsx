@@ -4,13 +4,25 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { RefreshCw, Trash2, Save } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { RefreshCw, Trash2, Save, Shield, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Profile() {
   const { profile, updateProfile, syncData, isSyncing, clearLocalData, isOnline } = useAppContext()
   const [formData, setFormData] = useState(profile)
+
+  useEffect(() => {
+    setFormData(profile)
+  }, [profile])
 
   const handleSave = () => {
     updateProfile(formData)
@@ -35,7 +47,20 @@ export default function Profile() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Informações Pessoais</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Informações Pessoais
+            <Badge variant={formData.role === 'admin' ? 'default' : 'secondary'} className="ml-2">
+              {formData.role === 'admin' ? (
+                <>
+                  <ShieldAlert className="w-3 h-3 mr-1" /> Administrador
+                </>
+              ) : (
+                <>
+                  <Shield className="w-3 h-3 mr-1" /> Avaliador
+                </>
+              )}
+            </Badge>
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -46,7 +71,7 @@ export default function Profile() {
             <div className="flex-1 space-y-4 w-full">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Nome Compleo</Label>
+                  <Label>Nome Completo</Label>
                   <Input
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -59,13 +84,34 @@ export default function Profile() {
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2">
                   <Label>E-mail Corporativo</Label>
                   <Input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Perfil de Acesso</Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(val: any) => setFormData({ ...formData, role: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o perfil" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador (Acesso Total)</SelectItem>
+                      <SelectItem value="evaluator">Avaliador (Apenas Inspeções)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                    <strong>Nota:</strong> Avaliadores têm acesso restrito à realização de inspeções
+                    e não podem modificar configurações ou acessar painéis gerenciais.
+                  </p>
                 </div>
               </div>
             </div>

@@ -3,8 +3,16 @@ import { ItemsManager } from '@/components/settings/ItemsManager'
 import { FacilitiesManager } from '@/components/settings/FacilitiesManager'
 import { EvaluatorsManager } from '@/components/settings/EvaluatorsManager'
 import { ContactsManager } from '@/components/settings/ContactsManager'
+import { Navigate } from 'react-router-dom'
+import { useAppContext } from '@/store/AppContext'
 
 export default function Settings() {
+  const { profile } = useAppContext()
+
+  if (profile.role !== 'admin') {
+    return <Navigate to="/" replace />
+  }
+
   return (
     <div className="space-y-6">
       <div>

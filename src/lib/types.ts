@@ -1,4 +1,5 @@
 export type StatusType = 'C' | 'NC' | 'NA' | null
+export type UserRole = 'admin' | 'evaluator'
 
 export interface ChecklistItem {
   id: string
@@ -58,4 +59,5 @@ export interface UserProfile {
   email: string
   phone: string
   avatar: string
+  role: UserRole
 }
