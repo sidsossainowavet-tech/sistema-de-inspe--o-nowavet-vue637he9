@@ -1,9 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { ChecklistItem, Contact, Inspection, UserProfile } from '@/lib/types'
+import { ChecklistItem, Contact, Inspection, UserProfile, Facility, Evaluator } from '@/lib/types'
 
 interface AppState {
   items: ChecklistItem[]
+  setItems: React.Dispatch<React.SetStateAction<ChecklistItem[]>>
   contacts: Contact[]
+  updateContacts: (contacts: Contact[]) => void
+  facilities: Facility[]
+  setFacilities: React.Dispatch<React.SetStateAction<Facility[]>>
+  evaluators: Evaluator[]
+  setEvaluators: React.Dispatch<React.SetStateAction<Evaluator[]>>
   inspections: Inspection[]
   profile: UserProfile
   isOnline: boolean
@@ -12,22 +18,36 @@ interface AppState {
   syncData: () => Promise<void>
   updateProfile: (profile: UserProfile) => void
   toggleItemStatus: (id: string) => void
-  updateContacts: (contacts: Contact[]) => void
   clearLocalData: () => void
 }
 
 const defaultItems: ChecklistItem[] = [
-  { id: '1', name: 'Portões e Fechaduras', active: true },
-  { id: '2', name: 'Iluminação Interna/Externa', active: true },
-  { id: '3', name: 'Bebedouros e Comedouros', active: true },
-  { id: '4', name: 'Estrutura do Telhado', active: true },
-  { id: '5', name: 'Pisos e Drenagem', active: true },
+  { id: '1', name: 'Portões e Fechaduras', active: true, mandatory: true },
+  { id: '2', name: 'Iluminação Interna/Externa', active: true, mandatory: true },
+  { id: '3', name: 'Bebedouros e Comedouros', active: true, mandatory: true },
+  { id: '4', name: 'Estrutura do Telhado', active: true, mandatory: true },
+  { id: '5', name: 'Pisos e Drenagem', active: true, mandatory: true },
 ]
 
 const defaultContacts: Contact[] = [
   { id: 'c1', sector: 'Qualidade', email: 'qualidade@nowavet.com', phone: '5511999999999' },
   { id: 'c2', sector: 'Projetos', email: 'projetos@nowavet.com', phone: '5511999999998' },
   { id: 'c3', sector: 'Pesquisa Clínica', email: 'pesquisa@nowavet.com', phone: '5511999999997' },
+]
+
+const defaultFacilities: Facility[] = [
+  { id: 'f1', name: 'Galpão A', description: 'Armazenamento Principal' },
+  { id: 'f2', name: 'Laboratório 2', description: 'Área de Testes' },
+]
+
+const defaultEvaluators: Evaluator[] = [
+  {
+    id: 'e1',
+    name: 'Inspetor Padrão',
+    email: 'inspetor@nowavet.com',
+    phone: '5511988887777',
+    avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=12',
+  },
 ]
 
 const defaultProfile: UserProfile = {
@@ -43,6 +63,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [items, setItems] = useState<ChecklistItem[]>(() => {
     const saved = localStorage.getItem('nowavet_items')
     return saved ? JSON.parse(saved) : defaultItems
+  })
+
+  const [facilities, setFacilities] = useState<Facility[]>(() => {
+    const saved = localStorage.getItem('nowavet_facilities')
+    return saved ? JSON.parse(saved) : defaultFacilities
+  })
+
+  const [evaluators, setEvaluators] = useState<Evaluator[]>(() => {
+    const saved = localStorage.getItem('nowavet_evaluators')
+    return saved ? JSON.parse(saved) : defaultEvaluators
   })
 
   const [contacts, setContacts] = useState<Contact[]>(() => {
@@ -81,6 +111,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('nowavet_items', JSON.stringify(items))
   }, [items])
   useEffect(() => {
+    localStorage.setItem('nowavet_facilities', JSON.stringify(facilities))
+  }, [facilities])
+  useEffect(() => {
+    localStorage.setItem('nowavet_evaluators', JSON.stringify(evaluators))
+  }, [evaluators])
+  useEffect(() => {
     localStorage.setItem('nowavet_contacts', JSON.stringify(contacts))
   }, [contacts])
   useEffect(() => {
@@ -93,7 +129,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncData = async () => {
     if (!navigator.onLine) return
     setIsSyncing(true)
-    // Simulate network delay
     await new Promise((r) => setTimeout(r, 1500))
     setInspections((prev) => prev.map((i) => ({ ...i, isSynced: true })))
     setIsSyncing(false)
@@ -107,9 +142,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isSynced: isOnline,
     }
     setInspections((prev) => [newInspection, ...prev])
-    if (!isOnline) {
-      // Simulate queuing
-    }
   }
 
   const toggleItemStatus = (id: string) => {
@@ -130,7 +162,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     {
       value: {
         items,
+        setItems,
+        facilities,
+        setFacilities,
+        evaluators,
+        setEvaluators,
         contacts,
+        updateContacts: setContacts,
         inspections,
         profile,
         isOnline,
@@ -139,7 +177,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncData,
         updateProfile: setProfile,
         toggleItemStatus,
-        updateContacts: setContacts,
         clearLocalData,
       },
     },

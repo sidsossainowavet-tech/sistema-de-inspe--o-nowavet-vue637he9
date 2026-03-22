@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAppContext } from '@/store/AppContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -18,12 +17,13 @@ import { toast } from 'sonner'
 import { Save } from 'lucide-react'
 
 export default function NewInspection() {
-  const { items, profile, addInspection } = useAppContext()
+  const { items, facilities, evaluators, addInspection } = useAppContext()
   const navigate = useNavigate()
 
   const activeItems = items.filter((i) => i.active)
 
-  const [structure, setStructure] = useState('')
+  const [facilityId, setFacilityId] = useState('')
+  const [evaluatorId, setEvaluatorId] = useState('')
   const [type, setType] = useState<'Check-in' | 'Check-out'>('Check-in')
   const [answers, setAnswers] = useState<Record<string, Answer>>({})
 
@@ -32,22 +32,30 @@ export default function NewInspection() {
   }
 
   const validateForm = () => {
-    if (!structure.trim()) {
-      toast.error('Informe o nome da estrutura.')
+    if (!facilityId) {
+      toast.error('Selecione a instalação.')
+      return false
+    }
+    if (!evaluatorId) {
+      toast.error('Selecione o avaliador.')
       return false
     }
     for (const item of activeItems) {
       const ans = answers[item.id]
-      if (!ans?.status) {
-        toast.error(`Item "${item.name}" requer status.`)
+      const isMandatory = item.mandatory !== false // Default to true if undefined
+
+      if (isMandatory && !ans?.status) {
+        toast.error(`Item "${item.name}" é obrigatório.`)
         return false
       }
-      if (!ans.photo) {
+
+      // If a status was given, require photo and justification if needed
+      if (ans?.status && !ans.photo) {
         toast.error(`Item "${item.name}" requer foto.`)
         return false
       }
-      if (ans.status === 'NC' && !ans.justification?.trim()) {
-        toast.error(`Item "${item.name}" requer justificativa.`)
+      if (ans?.status === 'NC' && !ans.justification?.trim()) {
+        toast.error(`Item "${item.name}" requer justificativa para Não Conformidade.`)
         return false
       }
     }
@@ -57,11 +65,14 @@ export default function NewInspection() {
   const handleSubmit = () => {
     if (!validateForm()) return
 
+    const facility = facilities.find((f) => f.id === facilityId)
+    const evaluator = evaluators.find((e) => e.id === evaluatorId)
+
     addInspection({
-      structure,
+      structure: facility?.name || 'Desconhecido',
       type,
-      inspector: profile.name,
-      answers: Object.values(answers),
+      inspector: evaluator?.name || 'Desconhecido',
+      answers: Object.values(answers).filter((a) => a.status),
     })
 
     toast.success('Inspeção salva com sucesso!')
@@ -81,16 +92,53 @@ export default function NewInspection() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="structure">
-              Estrutura Física / Local <span className="text-destructive">*</span>
+            <Label htmlFor="facility">
+              Instalação / Estrutura <span className="text-destructive">*</span>
             </Label>
-            <Input
-              id="structure"
-              placeholder="Ex: Galpão A, Laboratório 2..."
-              value={structure}
-              onChange={(e) => setStructure(e.target.value)}
-            />
+            <Select value={facilityId} onValueChange={setFacilityId}>
+              <SelectTrigger id="facility">
+                <SelectValue placeholder="Selecione a instalação..." />
+              </SelectTrigger>
+              <SelectContent>
+                {facilities.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    Nenhuma cadastrada
+                  </SelectItem>
+                ) : (
+                  facilities.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="evaluator">
+              Avaliador Responsável <span className="text-destructive">*</span>
+            </Label>
+            <Select value={evaluatorId} onValueChange={setEvaluatorId}>
+              <SelectTrigger id="evaluator">
+                <SelectValue placeholder="Selecione o avaliador..." />
+              </SelectTrigger>
+              <SelectContent>
+                {evaluators.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    Nenhum cadastrado
+                  </SelectItem>
+                ) : (
+                  evaluators.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="type">
               Tipo de Inspeção <span className="text-destructive">*</span>
@@ -112,7 +160,8 @@ export default function NewInspection() {
         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
           Checklist
           <span className="text-xs font-normal text-muted-foreground px-2 py-1 bg-muted rounded-full">
-            {Object.keys(answers).length} / {activeItems.length} respondidos
+            {Object.keys(answers).filter((k) => answers[k].status).length} / {activeItems.length}{' '}
+            respondidos
           </span>
         </h2>
         {activeItems.length === 0 ? (

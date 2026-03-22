@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { Camera, Image as ImageIcon, AlertTriangle, X } from 'lucide-react'
+import { Camera, AlertTriangle, X } from 'lucide-react'
 import { ChecklistItem, Answer, StatusType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +20,7 @@ export function ChecklistItemCard({ item, answer, onChange }: Props) {
   const currentStatus = answer?.status || null
   const currentPhoto = answer?.photo || ''
   const currentJustification = answer?.justification || ''
+  const isMandatory = item.mandatory !== false
 
   const handleStatusChange = (val: string) => {
     onChange({
@@ -42,9 +43,6 @@ export function ChecklistItemCard({ item, answer, onChange }: Props) {
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // In a real app, we'd compress and store base64. Using ObjectURL for demo preview.
-      // To ensure it doesn't break localStorage limits in this demo, we'll use a placeholder URL
-      // if we were strictly saving, but let's use a real small base64 for authenticity.
       const reader = new FileReader()
       reader.onloadend = () => {
         onChange({
@@ -81,7 +79,10 @@ export function ChecklistItemCard({ item, answer, onChange }: Props) {
       <CardContent className="p-4 space-y-4">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div className="flex-1">
-            <h4 className="font-semibold text-base mb-3">{item.name}</h4>
+            <h4 className="font-semibold text-base mb-3 flex items-center">
+              {item.name}
+              {isMandatory && <span className="text-destructive ml-1 text-lg leading-none">*</span>}
+            </h4>
             <RadioGroup
               value={currentStatus || ''}
               onValueChange={handleStatusChange}
@@ -139,7 +140,9 @@ export function ChecklistItemCard({ item, answer, onChange }: Props) {
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Camera className="mx-auto h-8 w-8 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground block">Obrigatório</span>
+                <span className="text-xs text-muted-foreground block">
+                  {currentStatus ? 'Foto (Obrigatória)' : 'Adicionar Foto'}
+                </span>
               </div>
             )}
             <input

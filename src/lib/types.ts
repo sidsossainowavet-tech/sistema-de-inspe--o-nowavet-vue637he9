@@ -4,6 +4,7 @@ export interface ChecklistItem {
   id: string
   name: string
   active: boolean
+  mandatory?: boolean
 }
 
 export interface Contact {
@@ -11,6 +12,20 @@ export interface Contact {
   sector: string
   email: string
   phone: string
+}
+
+export interface Facility {
+  id: string
+  name: string
+  description: string
+}
+
+export interface Evaluator {
+  id: string
+  name: string
+  email: string
+  phone: string
+  avatar: string
 }
 
 export interface Answer {
