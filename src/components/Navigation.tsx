@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, ClipboardCheck, Settings, User, Activity } from 'lucide-react'
+import { Home, ClipboardCheck, Settings, User, Activity, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppContext } from '@/store/AppContext'
 
@@ -13,7 +13,7 @@ const navItems = [
 
 export function DesktopSidebar() {
   const location = useLocation()
-  const { profile } = useAppContext()
+  const { profile, logout } = useAppContext()
 
   const allowedNavItems = navItems.filter((item) => {
     if (
@@ -47,6 +47,15 @@ export function DesktopSidebar() {
           )
         })}
       </nav>
+      <div className="p-4 border-t border-border/50">
+        <button
+          onClick={logout}
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-destructive transition-all hover:bg-destructive/10"
+        >
+          <LogOut className="h-5 w-5" />
+          Sair do Sistema
+        </button>
+      </div>
     </aside>
   )
 }

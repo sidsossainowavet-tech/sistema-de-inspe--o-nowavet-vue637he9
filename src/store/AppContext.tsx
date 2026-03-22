@@ -8,6 +8,7 @@ import {
   Evaluator,
   UserAccount,
 } from '@/lib/types'
+import { toast } from 'sonner'
 
 interface AppState {
   items: ChecklistItem[]
@@ -24,6 +25,9 @@ interface AppState {
   setUsers: React.Dispatch<React.SetStateAction<UserAccount[]>>
   isOnline: boolean
   isSyncing: boolean
+  isAuthenticated: boolean
+  login: (email: string, pass: string) => boolean
+  logout: () => void
   addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => void
   syncData: () => Promise<void>
   updateProfile: (profile: UserProfile) => void
@@ -151,6 +155,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : defaultUsers
   })
 
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('nowavet_auth') === 'true'
+  })
+
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isSyncing, setIsSyncing] = useState(false)
 
@@ -189,6 +197,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('nowavet_users', JSON.stringify(users))
   }, [users])
+  useEffect(() => {
+    localStorage.setItem('nowavet_auth', isAuthenticated.toString())
+  }, [isAuthenticated])
+
+  const login = (email: string, pass: string): boolean => {
+    const user = users.find((u) => u.email === email && u.password === pass)
+    if (user) {
+      if (!user.active) return false
+      setProfile((prev) => ({
+        ...prev,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar || prev.avatar || '',
+      }))
+      setIsAuthenticated(true)
+      return true
+    }
+    return false
+  }
+
+  const logout = () => {
+    setIsAuthenticated(false)
+    localStorage.removeItem('nowavet_auth')
+  }
 
   const syncData = async () => {
     if (!navigator.onLine) return
@@ -211,6 +244,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleItemStatus = (id: string) => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, active: !item.active } : item)),
+    )
+  }
+
+  const updateProfile = (newProfile: UserProfile) => {
+    setProfile(newProfile)
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.email === newProfile.email
+          ? { ...u, name: newProfile.name, avatar: newProfile.avatar, role: newProfile.role }
+          : u,
+      ),
     )
   }
 
@@ -239,9 +283,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUsers,
         isOnline,
         isSyncing,
+        isAuthenticated,
+        login,
+        logout,
         addInspection,
         syncData,
-        updateProfile: setProfile,
+        updateProfile,
         toggleItemStatus,
         clearLocalData,
       },

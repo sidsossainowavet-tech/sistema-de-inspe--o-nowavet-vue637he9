@@ -1,11 +1,15 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, Navigate } from 'react-router-dom'
 import { TopHeader } from './TopHeader'
 import { DesktopSidebar, BottomNav } from './Navigation'
 import { useAppContext } from '@/store/AppContext'
 import { AlertCircle } from 'lucide-react'
 
 export default function Layout() {
-  const { profile, users } = useAppContext()
+  const { profile, users, isAuthenticated } = useAppContext()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
 
   const currentUser = users?.find((u) => u.email === profile.email)
   const isUserActive = currentUser ? currentUser.active : true

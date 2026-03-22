@@ -1,12 +1,15 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, Navigate } from 'react-router-dom'
 import { useAppContext } from '@/store/AppContext'
 import { Button } from '@/components/ui/button'
 import { Printer, ArrowLeft, MessageSquare, Mail } from 'lucide-react'
-import { useEffect } from 'react'
 
 export default function PrintReport() {
   const { id } = useParams()
-  const { inspections, items, contacts } = useAppContext()
+  const { inspections, items, contacts, isAuthenticated } = useAppContext()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
 
   const inspection = inspections.find((i) => i.id === id)
 

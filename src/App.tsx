@@ -7,6 +7,7 @@ import { AppProvider } from '@/store/AppContext'
 
 import Layout from './components/Layout'
 import Index from './pages/Index'
+import Login from './pages/Login'
 import NewInspection from './pages/NewInspection'
 import QualityDashboard from './pages/QualityDashboard'
 import Settings from './pages/Settings'
@@ -22,6 +23,7 @@ const App = () => (
         <Toaster />
         <Sonner position="top-center" />
         <Routes>
+          <Route path="/login" element={<Login />} />
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
             <Route path="/inspecao/nova" element={<NewInspection />} />
