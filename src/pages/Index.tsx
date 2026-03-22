@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { FileText, ClipboardList, AlertTriangle, CloudOff, CheckCircle2, Plus } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export default function Index() {
   const { inspections, isOnline } = useAppContext()
