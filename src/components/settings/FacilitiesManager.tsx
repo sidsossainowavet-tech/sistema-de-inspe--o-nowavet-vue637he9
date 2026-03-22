@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Edit, Trash2, Plus } from 'lucide-react'
+import { Edit, Trash2, Plus, QrCode, Download, Printer } from 'lucide-react'
 import { Facility } from '@/lib/types'
 import { toast } from 'sonner'
 
@@ -30,6 +30,8 @@ export function FacilitiesManager() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+
+  const [qrFacility, setQrFacility] = useState<Facility | null>(null)
 
   const openDialog = (f?: Facility) => {
     if (f) {
@@ -64,6 +66,62 @@ export function FacilitiesManager() {
     if (confirm('Tem certeza que deseja remover esta instalação?')) {
       setFacilities(facilities.filter((f) => f.id !== id))
       toast.success('Instalação removida')
+    }
+  }
+
+  const handleDownloadQr = async () => {
+    if (!qrFacility) return
+    try {
+      const response = await fetch(
+        `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=nowavet-facility:${qrFacility.id}`,
+      )
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `qrcode-${qrFacility.name.replace(/\s+/g, '-').toLowerCase()}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('Download iniciado')
+    } catch (e) {
+      window.open(
+        `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=nowavet-facility:${qrFacility.id}`,
+        '_blank',
+      )
+    }
+  }
+
+  const handlePrintQr = () => {
+    if (!qrFacility) return
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>QR Code - ${qrFacility.name}</title>
+            <style>
+              @page { margin: 0; }
+              body { 
+                display: flex; flex-direction: column; align-items: center; 
+                justify-content: center; height: 100vh; margin: 0; 
+                font-family: system-ui, sans-serif; text-align: center;
+              }
+              h1 { margin-bottom: 2rem; font-size: 3rem; color: #1e293b; }
+              img { width: 500px; height: 500px; max-width: 90vw; }
+              p { margin-top: 2rem; color: #64748b; font-size: 1.5rem; }
+            </style>
+          </head>
+          <body>
+            <h1>${qrFacility.name}</h1>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=nowavet-facility:${qrFacility.id}" />
+            <p>Escaneie este código para iniciar a inspeção</p>
+            <script>setTimeout(() => { window.print(); window.close(); }, 800);</script>
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
     }
   }
 
@@ -111,7 +169,7 @@ export function FacilitiesManager() {
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Descrição</TableHead>
-              <TableHead className="w-[100px]"></TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -128,10 +186,28 @@ export function FacilitiesManager() {
                   <TableCell>{f.description}</TableCell>
                   <TableCell>
                     <div className="flex gap-2 justify-end">
-                      <Button variant="ghost" size="icon" onClick={() => openDialog(f)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setQrFacility(f)}
+                        title="Gerar QR Code"
+                      >
+                        <QrCode className="h-4 w-4 text-primary" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openDialog(f)}
+                        title="Editar"
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(f.id)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(f.id)}
+                        title="Excluir"
+                      >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -141,6 +217,35 @@ export function FacilitiesManager() {
             )}
           </TableBody>
         </Table>
+
+        <Dialog open={!!qrFacility} onOpenChange={(open) => !open && setQrFacility(null)}>
+          <DialogContent className="sm:max-w-md text-center">
+            <DialogHeader>
+              <DialogTitle>QR Code da Instalação</DialogTitle>
+            </DialogHeader>
+            {qrFacility && (
+              <div className="flex flex-col items-center space-y-6 py-4">
+                <h3 className="text-xl font-bold text-primary">{qrFacility.name}</h3>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=nowavet-facility:${qrFacility.id}`}
+                    alt={`QR Code para ${qrFacility.name}`}
+                    className="w-48 h-48 mx-auto"
+                    crossOrigin="anonymous"
+                  />
+                </div>
+                <div className="flex gap-3 w-full">
+                  <Button variant="outline" className="flex-1" onClick={handleDownloadQr}>
+                    <Download className="w-4 h-4 mr-2" /> Baixar
+                  </Button>
+                  <Button className="flex-1" onClick={handlePrintQr}>
+                    <Printer className="w-4 h-4 mr-2" /> Imprimir
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )

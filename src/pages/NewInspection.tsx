@@ -12,9 +12,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ChecklistItemCard } from '@/components/ChecklistItemCard'
+import { QRScanner } from '@/components/QRScanner'
 import { Answer } from '@/lib/types'
 import { toast } from 'sonner'
-import { Save } from 'lucide-react'
+import { Save, QrCode } from 'lucide-react'
 
 export default function NewInspection() {
   const { items, facilities, evaluators, addInspection } = useAppContext()
@@ -26,6 +27,7 @@ export default function NewInspection() {
   const [evaluatorId, setEvaluatorId] = useState('')
   const [type, setType] = useState<'Check-in' | 'Check-out'>('Check-in')
   const [answers, setAnswers] = useState<Record<string, Answer>>({})
+  const [scannerOpen, setScannerOpen] = useState(false)
 
   const handleAnswerChange = (ans: Answer) => {
     setAnswers((prev) => ({ ...prev, [ans.itemId]: ans }))
@@ -42,14 +44,13 @@ export default function NewInspection() {
     }
     for (const item of activeItems) {
       const ans = answers[item.id]
-      const isMandatory = item.mandatory !== false // Default to true if undefined
+      const isMandatory = item.mandatory !== false
 
       if (isMandatory && !ans?.status) {
         toast.error(`Item "${item.name}" é obrigatório.`)
         return false
       }
 
-      // If a status was given, require photo and justification if needed
       if (ans?.status && !ans.photo) {
         toast.error(`Item "${item.name}" requer foto.`)
         return false
@@ -79,11 +80,60 @@ export default function NewInspection() {
     navigate('/')
   }
 
+  const handleScan = (data: string) => {
+    setScannerOpen(false)
+
+    if (data.startsWith('nowavet-facility:')) {
+      const id = data.replace('nowavet-facility:', '')
+      const found = facilities.find((f) => f.id === id)
+      if (found) {
+        setFacilityId(found.id)
+        toast.success(`Instalação identificada: ${found.name}`)
+
+        setTimeout(() => {
+          document
+            .getElementById('checklist-section')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 400)
+      } else {
+        toast.error('Instalação não encontrada ou QR Code inválido.')
+      }
+    } else {
+      toast.error('Instalação não encontrada ou QR Code inválido.')
+    }
+  }
+
   return (
     <div className="space-y-6 pb-8">
+      {scannerOpen && (
+        <QRScanner
+          onScan={handleScan}
+          onClose={() => setScannerOpen(false)}
+          facilities={facilities}
+        />
+      )}
+
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-primary mb-1">Nova Inspeção</h1>
         <p className="text-muted-foreground">Preencha todos os campos obrigatórios (*)</p>
+      </div>
+
+      <div className="space-y-4">
+        <Button
+          variant="outline"
+          className="w-full h-16 border-dashed border-2 border-primary/50 text-primary hover:bg-primary/5 bg-primary/5 text-lg shadow-sm"
+          onClick={() => setScannerOpen(true)}
+        >
+          <QrCode className="w-6 h-6 mr-3" />
+          Escanear QR Code da Instalação
+        </Button>
+        <div className="flex items-center gap-4">
+          <div className="h-px bg-border flex-1"></div>
+          <span className="text-xs text-muted-foreground uppercase font-semibold">
+            ou selecione manualmente
+          </span>
+          <div className="h-px bg-border flex-1"></div>
+        </div>
       </div>
 
       <Card className="border-t-4 border-t-primary shadow-sm">
@@ -96,7 +146,12 @@ export default function NewInspection() {
               Instalação / Estrutura <span className="text-destructive">*</span>
             </Label>
             <Select value={facilityId} onValueChange={setFacilityId}>
-              <SelectTrigger id="facility">
+              <SelectTrigger
+                id="facility"
+                className={
+                  facilityId ? 'bg-primary/5 border-primary/40 font-medium text-primary' : ''
+                }
+              >
                 <SelectValue placeholder="Selecione a instalação..." />
               </SelectTrigger>
               <SelectContent>
@@ -156,7 +211,7 @@ export default function NewInspection() {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
+      <div id="checklist-section" className="space-y-4 pt-4 scroll-mt-20">
         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
           Checklist
           <span className="text-xs font-normal text-muted-foreground px-2 py-1 bg-muted rounded-full">
