@@ -12,9 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCw, Trash2, Save, Shield, ShieldAlert } from 'lucide-react'
+import { RefreshCw, Trash2, Save, Shield, ShieldAlert, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 
 export default function Profile() {
   const { profile, updateProfile, syncData, isSyncing, clearLocalData, isOnline } = useAppContext()
@@ -116,8 +117,15 @@ export default function Profile() {
               </div>
             </div>
           </div>
-          <div className="flex justify-end">
-            <Button onClick={handleSave} className="gap-2">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+            {formData.role === 'admin' && (
+              <Button variant="outline" asChild className="gap-2 w-full sm:w-auto">
+                <Link to="/usuarios">
+                  <Users className="h-4 w-4" /> Gerenciar Usuários
+                </Link>
+              </Button>
+            )}
+            <Button onClick={handleSave} className="gap-2 w-full sm:w-auto">
               <Save className="h-4 w-4" /> Salvar Perfil
             </Button>
           </div>

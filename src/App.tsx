@@ -11,6 +11,7 @@ import NewInspection from './pages/NewInspection'
 import QualityDashboard from './pages/QualityDashboard'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
+import UsersManagement from './pages/UsersManagement'
 import PrintReport from './pages/PrintReport'
 import NotFound from './pages/NotFound'
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/inspecao/nova" element={<NewInspection />} />
             <Route path="/qualidade" element={<QualityDashboard />} />
             <Route path="/configuracoes" element={<Settings />} />
+            <Route path="/usuarios" element={<UsersManagement />} />
             <Route path="/perfil" element={<Profile />} />
           </Route>
           {/* Print Route without Layout */}

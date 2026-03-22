@@ -61,3 +61,13 @@ export interface UserProfile {
   avatar: string
   role: UserRole
 }
+
+export interface UserAccount {
+  id: string
+  name: string
+  email: string
+  role: UserRole
+  active: boolean
+  password?: string
+  avatar?: string
+}

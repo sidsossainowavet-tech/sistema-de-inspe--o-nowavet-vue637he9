@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { ChecklistItem, Contact, Inspection, UserProfile, Facility, Evaluator } from '@/lib/types'
+import {
+  ChecklistItem,
+  Contact,
+  Inspection,
+  UserProfile,
+  Facility,
+  Evaluator,
+  UserAccount,
+} from '@/lib/types'
 
 interface AppState {
   items: ChecklistItem[]
@@ -12,6 +20,8 @@ interface AppState {
   setEvaluators: React.Dispatch<React.SetStateAction<Evaluator[]>>
   inspections: Inspection[]
   profile: UserProfile
+  users: UserAccount[]
+  setUsers: React.Dispatch<React.SetStateAction<UserAccount[]>>
   isOnline: boolean
   isSyncing: boolean
   addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => void
@@ -58,6 +68,18 @@ const defaultProfile: UserProfile = {
   role: 'admin',
 }
 
+const defaultUsers: UserAccount[] = [
+  {
+    id: 'u1',
+    name: 'Inspetor Padrão',
+    email: 'inspetor@nowavet.com',
+    role: 'admin',
+    active: true,
+    password: 'admin',
+    avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=12',
+  },
+]
+
 const defaultInspections: Inspection[] = [
   {
     id: 'i1',
@@ -82,54 +104,6 @@ const defaultInspections: Inspection[] = [
       { itemId: '3', status: 'C' },
       { itemId: '4', status: 'C' },
       { itemId: '5', status: 'C' },
-    ],
-  },
-  {
-    id: 'i2',
-    facilityId: 'f1',
-    evaluatorId: 'e1',
-    structure: 'Galpão A',
-    type: 'Check-out',
-    date: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
-    startTime: new Date(Date.now() - 1 * 24 * 3600 * 1000 - 12 * 60000).toISOString(),
-    endTime: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
-    durationSeconds: 720,
-    isSynced: true,
-    inspector: 'Inspetor Padrão',
-    answers: [
-      { itemId: '1', status: 'C' },
-      {
-        itemId: '2',
-        status: 'NC',
-        justification: 'Lâmpada ainda não foi trocada',
-        photo: 'https://img.usecurling.com/p/200/200?q=broken%20light',
-      },
-      { itemId: '3', status: 'C' },
-      { itemId: '4', status: 'C' },
-      {
-        itemId: '5',
-        status: 'NC',
-        justification: 'Piso molhado perto da porta',
-        photo: 'https://img.usecurling.com/p/200/200?q=wet%20floor',
-      },
-    ],
-  },
-  {
-    id: 'i3',
-    facilityId: 'f2',
-    evaluatorId: 'e1',
-    structure: 'Laboratório 2',
-    type: 'Check-in',
-    date: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
-    startTime: new Date(Date.now() - 5 * 24 * 3600 * 1000 - 25 * 60000).toISOString(),
-    endTime: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
-    durationSeconds: 1500,
-    isSynced: true,
-    inspector: 'Inspetor Padrão',
-    answers: [
-      { itemId: '1', status: 'C' },
-      { itemId: '2', status: 'C' },
-      { itemId: '3', status: 'C' },
     ],
   },
 ]
@@ -172,6 +146,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return defaultProfile
   })
 
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    const saved = localStorage.getItem('nowavet_users')
+    return saved ? JSON.parse(saved) : defaultUsers
+  })
+
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isSyncing, setIsSyncing] = useState(false)
 
@@ -207,6 +186,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('nowavet_profile', JSON.stringify(profile))
   }, [profile])
+  useEffect(() => {
+    localStorage.setItem('nowavet_users', JSON.stringify(users))
+  }, [users])
 
   const syncData = async () => {
     if (!navigator.onLine) return
@@ -253,6 +235,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateContacts: setContacts,
         inspections,
         profile,
+        users,
+        setUsers,
         isOnline,
         isSyncing,
         addInspection,
