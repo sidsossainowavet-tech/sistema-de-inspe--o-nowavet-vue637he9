@@ -1,11 +1,19 @@
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { useAppContext } from '@/store/AppContext'
 import { Button } from '@/components/ui/button'
-import { Printer, ArrowLeft, MessageSquare, Mail } from 'lucide-react'
+import { Printer, ArrowLeft, MessageSquare, Loader2 } from 'lucide-react'
 
 export default function PrintReport() {
   const { id } = useParams()
-  const { inspections, items, contacts, isAuthenticated } = useAppContext()
+  const { inspections, items, contacts, isAuthenticated, isCheckingSession } = useAppContext()
+
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="animate-spin w-8 h-8 text-primary" />
+      </div>
+    )
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
@@ -19,7 +27,6 @@ export default function PrintReport() {
 
   const ncs = inspection.answers.filter((a) => a.status === 'NC')
 
-  // WhatsApp Share Link
   const waMessage = encodeURIComponent(
     `*Relatório de Vistoria - Nowavet Agro*\nEstrutura: ${inspection.structure}\nTipo: ${inspection.type}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNão Conformidades: ${ncs.length}\n*Acesse o sistema para ver o PDF completo.*`,
   )
@@ -27,7 +34,6 @@ export default function PrintReport() {
 
   return (
     <div className="bg-white min-h-screen">
-      {/* Controls - Hidden in print */}
       <div className="no-print sticky top-0 bg-muted/90 p-4 border-b flex justify-between items-center z-50 backdrop-blur">
         <Button variant="ghost" asChild>
           <Link to="/">
@@ -50,7 +56,6 @@ export default function PrintReport() {
         </div>
       </div>
 
-      {/* Printable Area */}
       <div className="max-w-4xl mx-auto p-8 print:p-0 text-slate-800">
         <div className="flex justify-between items-start border-b-2 border-primary pb-6 mb-8">
           <div>

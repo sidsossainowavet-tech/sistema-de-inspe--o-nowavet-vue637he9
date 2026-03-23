@@ -8,6 +8,15 @@ import {
   Evaluator,
   UserAccount,
 } from '@/lib/types'
+import { api } from '@/lib/api'
+import {
+  defaultItems,
+  defaultContacts,
+  defaultFacilities,
+  defaultEvaluators,
+  defaultProfile,
+  defaultInspections,
+} from '@/lib/defaults'
 
 interface AppState {
   items: ChecklistItem[]
@@ -21,104 +30,19 @@ interface AppState {
   inspections: Inspection[]
   profile: UserProfile
   users: UserAccount[]
-  setUsers: React.Dispatch<React.SetStateAction<UserAccount[]>>
+  setUsers: (users: UserAccount[] | ((prev: UserAccount[]) => UserAccount[])) => Promise<void>
   isOnline: boolean
   isSyncing: boolean
   isAuthenticated: boolean
-  login: (email: string, pass: string) => { success: boolean; message?: string }
+  isCheckingSession: boolean
+  login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>
   logout: () => void
   addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => void
   syncData: () => Promise<void>
-  updateProfile: (profile: UserProfile) => void
+  updateProfile: (profile: UserProfile) => Promise<void>
   toggleItemStatus: (id: string) => void
   clearLocalData: () => void
 }
-
-const defaultItems: ChecklistItem[] = [
-  { id: '1', name: 'Portões e Fechaduras', active: true, mandatory: true },
-  { id: '2', name: 'Iluminação Interna/Externa', active: true, mandatory: true },
-  { id: '3', name: 'Bebedouros e Comedouros', active: true, mandatory: true },
-  { id: '4', name: 'Estrutura do Telhado', active: true, mandatory: true },
-  { id: '5', name: 'Pisos e Drenagem', active: true, mandatory: true },
-]
-
-const defaultContacts: Contact[] = [
-  { id: 'c1', sector: 'Qualidade', email: 'qualidade@nowavet.com', phone: '5511999999999' },
-  { id: 'c2', sector: 'Projetos', email: 'projetos@nowavet.com', phone: '5511999999998' },
-  { id: 'c3', sector: 'Pesquisa Clínica', email: 'pesquisa@nowavet.com', phone: '5511999999997' },
-]
-
-const defaultFacilities: Facility[] = [
-  { id: 'f1', name: 'Galpão A', description: 'Armazenamento Principal', frequencyDays: 7 },
-  { id: 'f2', name: 'Laboratório 2', description: 'Área de Testes', frequencyDays: 2 },
-]
-
-const defaultEvaluators: Evaluator[] = [
-  {
-    id: 'e1',
-    name: 'Inspetor Padrão',
-    email: 'inspetor@nowavet.com',
-    phone: '5511988887777',
-    avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=12',
-  },
-]
-
-const defaultProfile: UserProfile = {
-  name: 'Inspetor Padrão',
-  email: 'inspetor@nowavet.com',
-  phone: '(11) 98888-7777',
-  avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=12',
-  role: 'admin',
-}
-
-const defaultUsers: UserAccount[] = [
-  {
-    id: 'master',
-    name: 'Sidimar Sossai',
-    email: 'sidsossai@nowavet.com.br',
-    role: 'admin',
-    active: true,
-    password: 'nwv20031511@',
-    avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=1',
-  },
-  {
-    id: 'u1',
-    name: 'Inspetor Padrão',
-    email: 'inspetor@nowavet.com',
-    role: 'admin',
-    active: true,
-    password: 'admin',
-    avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=12',
-  },
-]
-
-const defaultInspections: Inspection[] = [
-  {
-    id: 'i1',
-    facilityId: 'f1',
-    evaluatorId: 'e1',
-    structure: 'Galpão A',
-    type: 'Check-in',
-    date: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
-    startTime: new Date(Date.now() - 3 * 24 * 3600 * 1000 - 15 * 60000).toISOString(),
-    endTime: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
-    durationSeconds: 900,
-    isSynced: true,
-    inspector: 'Inspetor Padrão',
-    answers: [
-      { itemId: '1', status: 'C' },
-      {
-        itemId: '2',
-        status: 'NC',
-        justification: 'Lâmpada queimada na entrada principal',
-        photo: 'https://img.usecurling.com/p/200/200?q=broken%20light',
-      },
-      { itemId: '3', status: 'C' },
-      { itemId: '4', status: 'C' },
-      { itemId: '5', status: 'C' },
-    ],
-  },
-]
 
 const AppContext = createContext<AppState | null>(null)
 
@@ -127,63 +51,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('nowavet_items')
     return saved ? JSON.parse(saved) : defaultItems
   })
-
   const [facilities, setFacilities] = useState<Facility[]>(() => {
     const saved = localStorage.getItem('nowavet_facilities')
     return saved ? JSON.parse(saved) : defaultFacilities
   })
-
   const [evaluators, setEvaluators] = useState<Evaluator[]>(() => {
     const saved = localStorage.getItem('nowavet_evaluators')
     return saved ? JSON.parse(saved) : defaultEvaluators
   })
-
   const [contacts, setContacts] = useState<Contact[]>(() => {
     const saved = localStorage.getItem('nowavet_contacts')
     return saved ? JSON.parse(saved) : defaultContacts
   })
-
   const [inspections, setInspections] = useState<Inspection[]>(() => {
     const saved = localStorage.getItem('nowavet_inspections')
     return saved ? JSON.parse(saved) : defaultInspections
   })
 
-  const [profile, setProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('nowavet_profile')
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (!parsed.role) parsed.role = 'admin'
-      return parsed
-    }
-    return defaultProfile
-  })
+  const [profile, setProfile] = useState<UserProfile>(defaultProfile)
+  const [users, setUsersState] = useState<UserAccount[]>([])
 
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    const saved = localStorage.getItem('nowavet_users')
-    let parsedUsers = saved ? JSON.parse(saved) : defaultUsers
-
-    const hasMaster = parsedUsers.some((u: UserAccount) => u.email === 'sidsossai@nowavet.com.br')
-    if (!hasMaster) {
-      parsedUsers = [
-        {
-          id: 'master',
-          name: 'Sidimar Sossai',
-          email: 'sidsossai@nowavet.com.br',
-          role: 'admin',
-          active: true,
-          password: 'nwv20031511@',
-          avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=1',
-        },
-        ...parsedUsers,
-      ]
-    }
-    return parsedUsers
-  })
-
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('nowavet_auth') === 'true'
-  })
-
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isSyncing, setIsSyncing] = useState(false)
 
@@ -202,6 +91,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [])
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('nowavet_session_token')
+      if (token) {
+        try {
+          const user = await api.verifySession(token)
+          setProfile({
+            name: user.name,
+            email: user.email,
+            phone: '',
+            avatar: user.avatar || '',
+            role: user.role,
+          })
+          setIsAuthenticated(true)
+          if (user.role === 'admin') {
+            setUsersState(await api.getUsers())
+          }
+        } catch {
+          localStorage.removeItem('nowavet_session_token')
+          setIsAuthenticated(false)
+        }
+      } else {
+        setIsAuthenticated(false)
+      }
+      setIsCheckingSession(false)
+    }
+    checkAuth()
+  }, [])
+
+  useEffect(() => {
     localStorage.setItem('nowavet_items', JSON.stringify(items))
   }, [items])
   useEffect(() => {
@@ -216,41 +134,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('nowavet_inspections', JSON.stringify(inspections))
   }, [inspections])
-  useEffect(() => {
-    localStorage.setItem('nowavet_profile', JSON.stringify(profile))
-  }, [profile])
-  useEffect(() => {
-    localStorage.setItem('nowavet_users', JSON.stringify(users))
-  }, [users])
-  useEffect(() => {
-    localStorage.setItem('nowavet_auth', isAuthenticated.toString())
-  }, [isAuthenticated])
 
-  const login = (email: string, pass: string): { success: boolean; message?: string } => {
-    const user = users.find((u) => u.email === email && u.password === pass)
-    if (user) {
-      if (!user.active) {
-        return {
-          success: false,
-          message: 'Sua conta está inativa. Entre em contato com o administrador.',
-        }
-      }
-      setProfile((prev) => ({
-        ...prev,
+  const setUsers = async (newUsers: UserAccount[] | ((prev: UserAccount[]) => UserAccount[])) => {
+    const toSave = typeof newUsers === 'function' ? newUsers(users) : newUsers
+    setUsersState(toSave)
+    await api.saveUsers(toSave)
+  }
+
+  const login = async (email: string, pass: string) => {
+    try {
+      const { token, user } = await api.login(email, pass)
+      localStorage.setItem('nowavet_session_token', token)
+      setProfile({
         name: user.name,
         email: user.email,
+        phone: '',
+        avatar: user.avatar || '',
         role: user.role,
-        avatar: user.avatar || prev.avatar || '',
-      }))
+      })
       setIsAuthenticated(true)
+      if (user.role === 'admin') {
+        setUsersState(await api.getUsers())
+      }
       return { success: true }
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Credenciais inválidas.' }
     }
-    return { success: false, message: 'Credenciais inválidas.' }
   }
 
   const logout = () => {
     setIsAuthenticated(false)
-    localStorage.removeItem('nowavet_auth')
+    localStorage.removeItem('nowavet_session_token')
   }
 
   const syncData = async () => {
@@ -277,15 +191,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     )
   }
 
-  const updateProfile = (newProfile: UserProfile) => {
+  const updateProfile = async (newProfile: UserProfile) => {
     setProfile(newProfile)
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.email === newProfile.email
-          ? { ...u, name: newProfile.name, avatar: newProfile.avatar, role: newProfile.role }
-          : u,
-      ),
+    const updatedUsers = users.map((u) =>
+      u.email === newProfile.email
+        ? { ...u, name: newProfile.name, avatar: newProfile.avatar, role: newProfile.role }
+        : u,
     )
+    setUsersState(updatedUsers)
+    await api.saveUsers(updatedUsers)
   }
 
   const clearLocalData = () => {
@@ -314,6 +228,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isOnline,
         isSyncing,
         isAuthenticated,
+        isCheckingSession,
         login,
         logout,
         addInspection,

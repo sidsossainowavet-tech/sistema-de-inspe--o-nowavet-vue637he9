@@ -2,10 +2,18 @@ import { Outlet, Navigate } from 'react-router-dom'
 import { TopHeader } from './TopHeader'
 import { DesktopSidebar, BottomNav } from './Navigation'
 import { useAppContext } from '@/store/AppContext'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 
 export default function Layout() {
-  const { profile, users, isAuthenticated } = useAppContext()
+  const { profile, users, isAuthenticated, isCheckingSession } = useAppContext()
+
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+        <Loader2 className="animate-spin w-8 h-8 text-primary" />
+      </div>
+    )
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />

@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Edit, ShieldAlert, Shield, UserPlus } from 'lucide-react'
+import { Edit, ShieldAlert, Shield, UserPlus, Loader2 } from 'lucide-react'
 import { UserAccount } from '@/lib/types'
 import { toast } from 'sonner'
 import { Navigate } from 'react-router-dom'
@@ -37,6 +37,7 @@ export default function UsersManagement() {
   const { users, setUsers, profile } = useAppContext()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<UserAccount | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -64,7 +65,7 @@ export default function UsersManagement() {
     setOpen(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || !email.trim() || (!editing && !password.trim())) {
       return toast.error('Preencha todos os campos obrigatórios.')
     }
@@ -78,36 +79,47 @@ export default function UsersManagement() {
       return toast.error('Este e-mail já está em uso por outro usuário.')
     }
 
-    if (editing) {
-      setUsers(
-        users.map((u) =>
-          u.id === editing.id ? { ...u, name, email, password: password || u.password, role } : u,
-        ),
-      )
-      toast.success('Usuário atualizado com sucesso.')
-    } else {
-      setUsers([
-        ...users,
-        {
-          id: Math.random().toString(36).substring(2),
-          name,
-          email,
-          password,
-          role,
-          active: true,
-        },
-      ])
-      toast.success('Usuário criado com sucesso.')
+    setIsLoading(true)
+    try {
+      if (editing) {
+        await setUsers(
+          users.map((u) =>
+            u.id === editing.id ? { ...u, name, email, password: password || u.password, role } : u,
+          ),
+        )
+        toast.success('Usuário atualizado com sucesso.')
+      } else {
+        await setUsers([
+          ...users,
+          {
+            id: Math.random().toString(36).substring(2),
+            name,
+            email,
+            password,
+            role,
+            active: true,
+          },
+        ])
+        toast.success('Usuário criado com sucesso.')
+      }
+      setOpen(false)
+    } catch (e) {
+      toast.error('Erro ao salvar usuário.')
+    } finally {
+      setIsLoading(false)
     }
-    setOpen(false)
   }
 
-  const toggleStatus = (user: UserAccount) => {
+  const toggleStatus = async (user: UserAccount) => {
     if (user.email === profile.email) {
       return toast.error('Você não pode inativar sua própria conta.')
     }
-    setUsers(users.map((u) => (u.id === user.id ? { ...u, active: !u.active } : u)))
-    toast.success(`Usuário ${!user.active ? 'ativado' : 'inativado'} com sucesso.`)
+    try {
+      await setUsers(users.map((u) => (u.id === user.id ? { ...u, active: !u.active } : u)))
+      toast.success(`Usuário ${!user.active ? 'ativado' : 'inativado'} com sucesso.`)
+    } catch (e) {
+      toast.error('Erro ao atualizar status.')
+    }
   }
 
   return (
@@ -140,6 +152,7 @@ export default function UsersManagement() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Ex: João Silva"
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -149,6 +162,7 @@ export default function UsersManagement() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="joao@nowavet.com"
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -160,11 +174,16 @@ export default function UsersManagement() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="***"
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Perfil de Acesso *</Label>
-                  <Select value={role} onValueChange={(val: any) => setRole(val)}>
+                  <Select
+                    value={role}
+                    onValueChange={(val: any) => setRole(val)}
+                    disabled={isLoading}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o perfil" />
                     </SelectTrigger>
@@ -174,7 +193,8 @@ export default function UsersManagement() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="w-full mt-4" onClick={handleSave}>
+                <Button className="w-full mt-4" onClick={handleSave} disabled={isLoading}>
+                  {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   {editing ? 'Salvar Alterações' : 'Criar Usuário'}
                 </Button>
               </div>

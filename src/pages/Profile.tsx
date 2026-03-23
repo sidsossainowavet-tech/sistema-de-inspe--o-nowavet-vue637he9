@@ -12,7 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCw, Trash2, Save, Shield, ShieldAlert, Users, Camera, LogOut } from 'lucide-react'
+import {
+  RefreshCw,
+  Trash2,
+  Save,
+  Shield,
+  ShieldAlert,
+  Users,
+  Camera,
+  LogOut,
+  Loader2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
@@ -21,15 +31,23 @@ export default function Profile() {
   const { profile, updateProfile, syncData, isSyncing, clearLocalData, isOnline, logout } =
     useAppContext()
   const [formData, setFormData] = useState(profile)
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setFormData(profile)
   }, [profile])
 
-  const handleSave = () => {
-    updateProfile(formData)
-    toast.success('Perfil atualizado com sucesso!')
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      await updateProfile(formData)
+      toast.success('Perfil atualizado com sucesso!')
+    } catch (e) {
+      toast.error('Erro ao atualizar perfil')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleForceSync = async () => {
@@ -53,16 +71,18 @@ export default function Profile() {
     }
 
     const reader = new FileReader()
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const base64 = event.target?.result as string
       const updatedProfile = { ...formData, avatar: base64 }
       setFormData(updatedProfile)
-      updateProfile(updatedProfile)
-      toast.success('Foto de perfil atualizada!')
+      try {
+        await updateProfile(updatedProfile)
+        toast.success('Foto de perfil atualizada!')
+      } catch {
+        toast.error('Erro ao salvar foto.')
+      }
     }
-    reader.onerror = () => {
-      toast.error('Erro ao processar a imagem.')
-    }
+    reader.onerror = () => toast.error('Erro ao processar a imagem.')
     reader.readAsDataURL(file)
   }
 
@@ -159,7 +179,7 @@ export default function Profile() {
                   <Select
                     value={formData.role}
                     onValueChange={(val: any) => setFormData({ ...formData, role: val })}
-                    disabled={formData.role === 'evaluator'} // Normal users shouldn't elevate themselves here
+                    disabled={formData.role === 'evaluator'}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o perfil" />
@@ -187,8 +207,13 @@ export default function Profile() {
                 </Link>
               </Button>
             )}
-            <Button onClick={handleSave} className="gap-2 w-full sm:w-auto">
-              <Save className="h-4 w-4" /> Salvar Perfil
+            <Button onClick={handleSave} disabled={isSaving} className="gap-2 w-full sm:w-auto">
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Salvar Perfil
             </Button>
           </div>
         </CardContent>
@@ -208,12 +233,11 @@ export default function Profile() {
                 onClick={handleForceSync}
                 disabled={isSyncing || !isOnline}
               >
-                <RefreshCw className={isSyncing ? 'h-4 w-4 animate-spin-slow' : 'h-4 w-4'} />
-                Forçar Sincronização
+                <RefreshCw className={isSyncing ? 'h-4 w-4 animate-spin-slow' : 'h-4 w-4'} /> Forçar
+                Sincronização
               </Button>
               <Button variant="secondary" className="w-full gap-2" onClick={clearLocalData}>
-                <Trash2 className="h-4 w-4" />
-                Limpar Cache Local
+                <Trash2 className="h-4 w-4" /> Limpar Cache Local
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground text-center leading-tight">

@@ -6,19 +6,28 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { Leaf } from 'lucide-react'
+import { Leaf, Loader2 } from 'lucide-react'
 
 export default function Login() {
-  const { login, isAuthenticated } = useAppContext()
+  const { login, isAuthenticated, isCheckingSession } = useAppContext()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+        <Loader2 className="animate-spin w-8 h-8 text-primary" />
+      </div>
+    )
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!email || !password) {
@@ -26,7 +35,9 @@ export default function Login() {
       return
     }
 
-    const result = login(email, password)
+    setIsLoading(true)
+    const result = await login(email, password)
+    setIsLoading(false)
 
     if (result.success) {
       toast.success('Login efetuado com sucesso!')
@@ -66,6 +77,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isLoading}
                 className="bg-background shadow-sm"
               />
             </div>
@@ -78,14 +90,16 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isLoading}
                 className="bg-background shadow-sm"
               />
             </div>
             <Button
               type="submit"
+              disabled={isLoading}
               className="w-full shadow-elevation py-6 text-base font-medium transition-all active:scale-[0.98]"
             >
-              Entrar no Sistema
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Entrar no Sistema'}
             </Button>
           </form>
         </CardContent>
