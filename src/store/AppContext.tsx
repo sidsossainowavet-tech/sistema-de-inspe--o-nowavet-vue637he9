@@ -73,6 +73,15 @@ const defaultProfile: UserProfile = {
 
 const defaultUsers: UserAccount[] = [
   {
+    id: 'master',
+    name: 'Sidimar Sossai',
+    email: 'sidsossai@nowavet.com.br',
+    role: 'admin',
+    active: true,
+    password: 'nwv20031511@',
+    avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=1',
+  },
+  {
     id: 'u1',
     name: 'Inspetor Padrão',
     email: 'inspetor@nowavet.com',
@@ -151,7 +160,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [users, setUsers] = useState<UserAccount[]>(() => {
     const saved = localStorage.getItem('nowavet_users')
-    return saved ? JSON.parse(saved) : defaultUsers
+    let parsedUsers = saved ? JSON.parse(saved) : defaultUsers
+
+    const hasMaster = parsedUsers.some((u: UserAccount) => u.email === 'sidsossai@nowavet.com.br')
+    if (!hasMaster) {
+      parsedUsers = [
+        {
+          id: 'master',
+          name: 'Sidimar Sossai',
+          email: 'sidsossai@nowavet.com.br',
+          role: 'admin',
+          active: true,
+          password: 'nwv20031511@',
+          avatar: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=1',
+        },
+        ...parsedUsers,
+      ]
+    }
+    return parsedUsers
   })
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {

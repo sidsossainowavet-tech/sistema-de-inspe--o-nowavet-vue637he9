@@ -113,9 +113,7 @@ export default function UsersManagement() {
   return (
     <div className="space-y-6 pb-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">
-          Gerenciamento de Usuários
-        </h1>
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Equipe</h1>
         <p className="text-muted-foreground">Controle de acessos e permissões do sistema</p>
       </div>
 

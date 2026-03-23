@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, ClipboardCheck, Settings, User, Activity, LogOut } from 'lucide-react'
+import { Home, ClipboardCheck, Settings, User, Activity, LogOut, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppContext } from '@/store/AppContext'
 
@@ -7,6 +7,7 @@ const navItems = [
   { path: '/', label: 'Início', icon: Home },
   { path: '/inspecao/nova', label: 'Inspeção', icon: ClipboardCheck },
   { path: '/qualidade', label: 'Qualidade', icon: Activity },
+  { path: '/usuarios', label: 'Equipe', icon: Users },
   { path: '/configuracoes', label: 'Ajustes', icon: Settings },
   { path: '/perfil', label: 'Perfil', icon: User },
 ]
@@ -18,7 +19,7 @@ export function DesktopSidebar() {
   const allowedNavItems = navItems.filter((item) => {
     if (
       profile.role !== 'admin' &&
-      (item.path === '/configuracoes' || item.path === '/qualidade')
+      ['/configuracoes', '/qualidade', '/usuarios'].includes(item.path)
     ) {
       return false
     }
@@ -67,7 +68,7 @@ export function BottomNav() {
   const allowedNavItems = navItems.filter((item) => {
     if (
       profile.role !== 'admin' &&
-      (item.path === '/configuracoes' || item.path === '/qualidade')
+      ['/configuracoes', '/qualidade', '/usuarios'].includes(item.path)
     ) {
       return false
     }
