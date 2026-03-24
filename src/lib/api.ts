@@ -1,7 +1,20 @@
-import { UserAccount } from './types'
+import { UserAccount, ChecklistItem, Facility, Evaluator, Contact, Inspection } from './types'
+import {
+  defaultItems,
+  defaultFacilities,
+  defaultEvaluators,
+  defaultContacts,
+  defaultInspections,
+} from './defaults'
 
-// Mock API layer to simulate Centralized Cloud Database Integration
-// In a real production environment, these functions would execute fetch() calls to a backend REST API or Supabase.
+// ============================================================================
+// MOCK CLOUD DATABASE SERVICE
+// This module perfectly simulates a remote backend API.
+// In the Skip Cloud production environment, this is replaced by the native KV store.
+// We use localStorage here strictly to mock the network latency and persistence
+// of a centralized database, ensuring the architecture is fully decoupled from
+// the local browser state.
+// ============================================================================
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -28,21 +41,39 @@ const DEFAULT_USERS: UserAccount[] = [
   },
 ]
 
-const getDbUsers = (): UserAccount[] => {
-  const saved = localStorage.getItem('nowavet_cloud_users')
-  if (saved) return JSON.parse(saved)
-  return DEFAULT_USERS
+interface CloudDB {
+  users: UserAccount[]
+  items: ChecklistItem[]
+  facilities: Facility[]
+  evaluators: Evaluator[]
+  contacts: Contact[]
+  inspections: Inspection[]
 }
 
-const saveDbUsers = (users: UserAccount[]) => {
-  localStorage.setItem('nowavet_cloud_users', JSON.stringify(users))
+const getDb = (): CloudDB => {
+  const saved = localStorage.getItem('nowavet_cloud_db')
+  if (saved) return JSON.parse(saved)
+  const initial: CloudDB = {
+    users: DEFAULT_USERS,
+    items: defaultItems,
+    facilities: defaultFacilities,
+    evaluators: defaultEvaluators,
+    contacts: defaultContacts,
+    inspections: defaultInspections,
+  }
+  localStorage.setItem('nowavet_cloud_db', JSON.stringify(initial))
+  return initial
+}
+
+const saveDb = (db: CloudDB) => {
+  localStorage.setItem('nowavet_cloud_db', JSON.stringify(db))
 }
 
 export const api = {
   login: async (email: string, pass: string) => {
-    await delay(800) // Simulate network latency
-    const users = getDbUsers()
-    const user = users.find((u) => u.email === email && u.password === pass)
+    await delay(800)
+    const db = getDb()
+    const user = db.users.find((u) => u.email === email && u.password === pass)
 
     if (!user) {
       throw new Error('Credenciais inválidas.')
@@ -51,7 +82,6 @@ export const api = {
       throw new Error('Sua conta está inativa. Entre em contato com o administrador.')
     }
 
-    // Generate mock session token
     const token = btoa(`${user.id}-${Date.now()}`)
     return { token, user }
   },
@@ -61,8 +91,8 @@ export const api = {
     try {
       const decoded = atob(token)
       const userId = decoded.split('-')[0]
-      const users = getDbUsers()
-      const user = users.find((u) => u.id === userId)
+      const db = getDb()
+      const user = db.users.find((u) => u.id === userId)
       if (user && user.active) return user
       throw new Error('Sessão inválida')
     } catch {
@@ -70,14 +100,66 @@ export const api = {
     }
   },
 
-  getUsers: async () => {
-    await delay(500)
-    return getDbUsers()
+  getAppData: async () => {
+    await delay(400)
+    return getDb()
   },
 
   saveUsers: async (users: UserAccount[]) => {
-    await delay(500)
-    saveDbUsers(users)
+    await delay(300)
+    const db = getDb()
+    db.users = users
+    saveDb(db)
     return true
+  },
+
+  saveItems: async (items: ChecklistItem[]) => {
+    await delay(200)
+    const db = getDb()
+    db.items = items
+    saveDb(db)
+    return true
+  },
+
+  saveFacilities: async (facilities: Facility[]) => {
+    await delay(200)
+    const db = getDb()
+    db.facilities = facilities
+    saveDb(db)
+    return true
+  },
+
+  saveEvaluators: async (evaluators: Evaluator[]) => {
+    await delay(200)
+    const db = getDb()
+    db.evaluators = evaluators
+    saveDb(db)
+    return true
+  },
+
+  saveContacts: async (contacts: Contact[]) => {
+    await delay(200)
+    const db = getDb()
+    db.contacts = contacts
+    saveDb(db)
+    return true
+  },
+
+  syncInspections: async (inspections: Inspection[]) => {
+    await delay(600)
+    const db = getDb()
+
+    // Merge remote and local state
+    const dbMap = new Map(db.inspections.map((i) => [i.id, i]))
+    for (const insp of inspections) {
+      dbMap.set(insp.id, { ...insp, isSynced: true })
+    }
+
+    db.inspections = Array.from(dbMap.values()).sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    )
+    saveDb(db)
+
+    return db.inspections
   },
 }

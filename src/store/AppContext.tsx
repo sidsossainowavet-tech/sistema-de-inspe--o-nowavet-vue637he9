@@ -9,28 +9,21 @@ import {
   UserAccount,
 } from '@/lib/types'
 import { api } from '@/lib/api'
-import {
-  defaultItems,
-  defaultContacts,
-  defaultFacilities,
-  defaultEvaluators,
-  defaultProfile,
-  defaultInspections,
-} from '@/lib/defaults'
+import { defaultProfile } from '@/lib/defaults'
 
 interface AppState {
   items: ChecklistItem[]
-  setItems: React.Dispatch<React.SetStateAction<ChecklistItem[]>>
+  setItems: (val: React.SetStateAction<ChecklistItem[]>) => Promise<void>
   contacts: Contact[]
-  updateContacts: (contacts: Contact[]) => void
+  updateContacts: (contacts: Contact[]) => Promise<void>
   facilities: Facility[]
-  setFacilities: React.Dispatch<React.SetStateAction<Facility[]>>
+  setFacilities: (val: React.SetStateAction<Facility[]>) => Promise<void>
   evaluators: Evaluator[]
-  setEvaluators: React.Dispatch<React.SetStateAction<Evaluator[]>>
+  setEvaluators: (val: React.SetStateAction<Evaluator[]>) => Promise<void>
   inspections: Inspection[]
   profile: UserProfile
   users: UserAccount[]
-  setUsers: (users: UserAccount[] | ((prev: UserAccount[]) => UserAccount[])) => Promise<void>
+  setUsers: (val: React.SetStateAction<UserAccount[]>) => Promise<void>
   isOnline: boolean
   isSyncing: boolean
   isAuthenticated: boolean
@@ -47,27 +40,11 @@ interface AppState {
 const AppContext = createContext<AppState | null>(null)
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [items, setItems] = useState<ChecklistItem[]>(() => {
-    const saved = localStorage.getItem('nowavet_items')
-    return saved ? JSON.parse(saved) : defaultItems
-  })
-  const [facilities, setFacilities] = useState<Facility[]>(() => {
-    const saved = localStorage.getItem('nowavet_facilities')
-    return saved ? JSON.parse(saved) : defaultFacilities
-  })
-  const [evaluators, setEvaluators] = useState<Evaluator[]>(() => {
-    const saved = localStorage.getItem('nowavet_evaluators')
-    return saved ? JSON.parse(saved) : defaultEvaluators
-  })
-  const [contacts, setContacts] = useState<Contact[]>(() => {
-    const saved = localStorage.getItem('nowavet_contacts')
-    return saved ? JSON.parse(saved) : defaultContacts
-  })
-  const [inspections, setInspections] = useState<Inspection[]>(() => {
-    const saved = localStorage.getItem('nowavet_inspections')
-    return saved ? JSON.parse(saved) : defaultInspections
-  })
-
+  const [items, setItemsState] = useState<ChecklistItem[]>([])
+  const [facilities, setFacilitiesState] = useState<Facility[]>([])
+  const [evaluators, setEvaluatorsState] = useState<Evaluator[]>([])
+  const [contacts, setContactsState] = useState<Contact[]>([])
+  const [inspections, setInspectionsState] = useState<Inspection[]>([])
   const [profile, setProfile] = useState<UserProfile>(defaultProfile)
   const [users, setUsersState] = useState<UserAccount[]>([])
 
@@ -75,6 +52,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isSyncing, setIsSyncing] = useState(false)
+
+  const loadCloudData = async () => {
+    try {
+      const data = await api.getAppData()
+      setItemsState(data.items)
+      setFacilitiesState(data.facilities)
+      setEvaluatorsState(data.evaluators)
+      setContactsState(data.contacts)
+      setUsersState(data.users)
+
+      const localInspRaw = localStorage.getItem('nowavet_local_inspections')
+      const localInsp: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
+      const pendingLocal = localInsp.filter((i) => !i.isSynced)
+
+      const pendingIds = new Set(pendingLocal.map((i) => i.id))
+      const merged = [...pendingLocal, ...data.inspections.filter((i) => !pendingIds.has(i.id))]
+      setInspectionsState(merged)
+    } catch (err) {
+      console.error('Failed to load cloud data', err)
+    }
+  }
 
   useEffect(() => {
     const handleOnline = () => {
@@ -104,9 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             role: user.role,
           })
           setIsAuthenticated(true)
-          if (user.role === 'admin') {
-            setUsersState(await api.getUsers())
-          }
+          await loadCloudData()
         } catch {
           localStorage.removeItem('nowavet_session_token')
           setIsAuthenticated(false)
@@ -120,25 +116,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [])
 
   useEffect(() => {
-    localStorage.setItem('nowavet_items', JSON.stringify(items))
-  }, [items])
-  useEffect(() => {
-    localStorage.setItem('nowavet_facilities', JSON.stringify(facilities))
-  }, [facilities])
-  useEffect(() => {
-    localStorage.setItem('nowavet_evaluators', JSON.stringify(evaluators))
-  }, [evaluators])
-  useEffect(() => {
-    localStorage.setItem('nowavet_contacts', JSON.stringify(contacts))
-  }, [contacts])
-  useEffect(() => {
-    localStorage.setItem('nowavet_inspections', JSON.stringify(inspections))
+    // Only cache inspections locally to persist them until they are synced to cloud
+    localStorage.setItem('nowavet_local_inspections', JSON.stringify(inspections))
   }, [inspections])
 
-  const setUsers = async (newUsers: UserAccount[] | ((prev: UserAccount[]) => UserAccount[])) => {
-    const toSave = typeof newUsers === 'function' ? newUsers(users) : newUsers
-    setUsersState(toSave)
-    await api.saveUsers(toSave)
+  // Abstracted Setters that update React state immediately and Cloud DB asynchronously
+  const setItems = (val: React.SetStateAction<ChecklistItem[]>) => {
+    return new Promise<void>((resolve) => {
+      setItemsState((prev) => {
+        const next = typeof val === 'function' ? (val as any)(prev) : val
+        api.saveItems(next).then(resolve).catch(console.error)
+        return next
+      })
+    })
+  }
+
+  const setFacilities = (val: React.SetStateAction<Facility[]>) => {
+    return new Promise<void>((resolve) => {
+      setFacilitiesState((prev) => {
+        const next = typeof val === 'function' ? (val as any)(prev) : val
+        api.saveFacilities(next).then(resolve).catch(console.error)
+        return next
+      })
+    })
+  }
+
+  const setEvaluators = (val: React.SetStateAction<Evaluator[]>) => {
+    return new Promise<void>((resolve) => {
+      setEvaluatorsState((prev) => {
+        const next = typeof val === 'function' ? (val as any)(prev) : val
+        api.saveEvaluators(next).then(resolve).catch(console.error)
+        return next
+      })
+    })
+  }
+
+  const updateContacts = (next: Contact[]) => {
+    return new Promise<void>((resolve) => {
+      setContactsState(next)
+      api.saveContacts(next).then(resolve).catch(console.error)
+    })
+  }
+
+  const setUsers = (val: React.SetStateAction<UserAccount[]>) => {
+    return new Promise<void>((resolve) => {
+      setUsersState((prev) => {
+        const next = typeof val === 'function' ? (val as any)(prev) : val
+        api.saveUsers(next).then(resolve).catch(console.error)
+        return next
+      })
+    })
   }
 
   const login = async (email: string, pass: string) => {
@@ -153,9 +180,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         role: user.role,
       })
       setIsAuthenticated(true)
-      if (user.role === 'admin') {
-        setUsersState(await api.getUsers())
-      }
+      await loadCloudData()
       return { success: true }
     } catch (err: any) {
       return { success: false, message: err.message || 'Credenciais inválidas.' }
@@ -165,14 +190,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     setIsAuthenticated(false)
     localStorage.removeItem('nowavet_session_token')
+    setItemsState([])
+    setFacilitiesState([])
+    setEvaluatorsState([])
+    setContactsState([])
+    setUsersState([])
+    // Keep local offline inspections
   }
 
   const syncData = async () => {
     if (!navigator.onLine) return
     setIsSyncing(true)
-    await new Promise((r) => setTimeout(r, 1500))
-    setInspections((prev) => prev.map((i) => ({ ...i, isSynced: true })))
-    setIsSyncing(false)
+    try {
+      const localInspRaw = localStorage.getItem('nowavet_local_inspections')
+      const currentInspections: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
+      if (currentInspections.length > 0) {
+        const cloudInspections = await api.syncInspections(currentInspections)
+        setInspectionsState(cloudInspections)
+      }
+
+      // Keep other entities silently up to date with cloud
+      const data = await api.getAppData()
+      setItemsState(data.items)
+      setFacilitiesState(data.facilities)
+      setEvaluatorsState(data.evaluators)
+      setContactsState(data.contacts)
+      setUsersState(data.users)
+    } catch (e) {
+      console.error('Data Sync Error:', e)
+    } finally {
+      setIsSyncing(false)
+    }
   }
 
   const addInspection = (data: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => {
@@ -180,9 +228,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       date: new Date().toISOString(),
-      isSynced: isOnline,
+      isSynced: false,
     }
-    setInspections((prev) => [newInspection, ...prev])
+    setInspectionsState((prev) => {
+      const next = [newInspection, ...prev]
+      if (navigator.onLine) {
+        setTimeout(syncData, 500)
+      }
+      return next
+    })
   }
 
   const toggleItemStatus = (id: string) => {
@@ -193,19 +247,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateProfile = async (newProfile: UserProfile) => {
     setProfile(newProfile)
-    const updatedUsers = users.map((u) =>
-      u.email === newProfile.email
-        ? { ...u, name: newProfile.name, avatar: newProfile.avatar, role: newProfile.role }
-        : u,
-    )
-    setUsersState(updatedUsers)
-    await api.saveUsers(updatedUsers)
+    return new Promise<void>((resolve) => {
+      setUsersState((prev) => {
+        const next = prev.map((u) =>
+          u.email === newProfile.email
+            ? { ...u, name: newProfile.name, avatar: newProfile.avatar, role: newProfile.role }
+            : u,
+        )
+        api.saveUsers(next).then(resolve).catch(console.error)
+        return next
+      })
+    })
   }
 
   const clearLocalData = () => {
-    if (confirm('Tem certeza? Isso apagará todas as inspeções locais não sincronizadas.')) {
-      setInspections([])
-      localStorage.removeItem('nowavet_inspections')
+    if (
+      confirm(
+        'Tem certeza? Isso apagará todas as inspeções locais não sincronizadas e forçará recarregamento do servidor.',
+      )
+    ) {
+      setInspectionsState((prev) => prev.filter((i) => i.isSynced))
+      localStorage.removeItem('nowavet_local_inspections')
+      if (navigator.onLine) {
+        syncData()
+      }
     }
   }
 
@@ -220,7 +285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         evaluators,
         setEvaluators,
         contacts,
-        updateContacts: setContacts,
+        updateContacts,
         inspections,
         profile,
         users,
