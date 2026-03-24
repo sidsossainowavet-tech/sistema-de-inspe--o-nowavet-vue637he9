@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js'
 import { UserAccount, ChecklistItem, Facility, Evaluator, Contact, Inspection } from './types'
 import {
   defaultItems,
@@ -8,11 +9,19 @@ import {
 } from './defaults'
 
 // ============================================================================
-// SKIP CLOUD SDK MOCK
-// Simulates the Skip Cloud centralized KV storage and Authentication service.
-// Uses cross-tab BroadcastChannel to mock real-time cross-device synchronization.
+// CLOUD DATABASE INTEGRATION
+// Implements Supabase with automatic fallback to local mock if env vars are missing
+// ensuring the app is always functional even without external configuration.
 // ============================================================================
 
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
+
+export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null
+
+// --- Mock Fallback Logic ---
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const MASTER_ADMIN: UserAccount = {
@@ -56,7 +65,6 @@ const getDb = (): CloudDB => {
   let db: CloudDB
   if (saved) {
     db = JSON.parse(saved)
-    // Enforce master admin configuration is present to ensure universal login
     if (!db.users.some((u) => u.email === MASTER_ADMIN.email)) {
       db.users.push(MASTER_ADMIN)
       localStorage.setItem(DB_KEY, JSON.stringify(db))
@@ -87,19 +95,43 @@ const notifySync = () => {
     channel.close()
   }
 }
+// --- End Mock Logic ---
 
 export const api = {
   login: async (email: string, pass: string) => {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass })
+      if (error) throw new Error('Credenciais inválidas.')
+
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single()
+
+      if (userError || !user) {
+        // Fallback user format if it exists in auth but not in users table yet
+        const fallbackUser: UserAccount = {
+          id: data.user?.id || 'unknown',
+          name: email.split('@')[0],
+          email,
+          role: email === MASTER_ADMIN.email ? 'admin' : 'evaluator',
+          active: true,
+        }
+        return { token: data.session.access_token, user: fallbackUser }
+      }
+
+      if (!user.active) throw new Error('Sua conta está inativa. Contate o administrador.')
+
+      return { token: data.session.access_token, user }
+    }
+
     await delay(600)
     const db = getDb()
     const user = db.users.find((u) => u.email === email && u.password === pass)
 
-    if (!user) {
-      throw new Error('Credenciais inválidas.')
-    }
-    if (!user.active) {
-      throw new Error('Sua conta está inativa. Entre em contato com o administrador.')
-    }
+    if (!user) throw new Error('Credenciais inválidas.')
+    if (!user.active) throw new Error('Sua conta está inativa. Contate o administrador.')
 
     const payload = { id: user.id, ts: Date.now() }
     const token = btoa(JSON.stringify(payload))
@@ -108,11 +140,38 @@ export const api = {
   },
 
   logout: async () => {
+    if (isSupabaseConfigured && supabase) {
+      await supabase.auth.signOut()
+      return
+    }
     await delay(300)
     localStorage.removeItem(AUTH_KEY)
   },
 
   verifySession: async () => {
+    if (isSupabaseConfigured && supabase) {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession()
+      if (error || !session) throw new Error('No session')
+
+      const email = session.user.email
+      const { data: user } = await supabase.from('users').select('*').eq('email', email).single()
+
+      if (user && user.active) return user
+      if (!user) {
+        return {
+          id: session.user.id,
+          email: email || '',
+          name: email?.split('@')[0] || 'Usuário',
+          role: email === MASTER_ADMIN.email ? 'admin' : 'evaluator',
+          active: true,
+        }
+      }
+      throw new Error('Invalid session')
+    }
+
     await delay(400)
     const token = localStorage.getItem(AUTH_KEY)
     if (!token) throw new Error('No session')
@@ -130,11 +189,37 @@ export const api = {
   },
 
   getAppData: async () => {
+    if (isSupabaseConfigured && supabase) {
+      const [itemsRes, facilitiesRes, evaluatorsRes, contactsRes, usersRes, inspectionsRes] =
+        await Promise.all([
+          supabase.from('items').select('*'),
+          supabase.from('facilities').select('*'),
+          supabase.from('evaluators').select('*'),
+          supabase.from('contacts').select('*'),
+          supabase.from('users').select('*'),
+          supabase.from('inspections').select('*').order('date', { ascending: false }),
+        ])
+
+      return {
+        items: itemsRes.data?.length ? itemsRes.data : defaultItems,
+        facilities: facilitiesRes.data?.length ? facilitiesRes.data : defaultFacilities,
+        evaluators: evaluatorsRes.data?.length ? evaluatorsRes.data : defaultEvaluators,
+        contacts: contactsRes.data?.length ? contactsRes.data : defaultContacts,
+        users: usersRes.data?.length ? usersRes.data : DEFAULT_USERS,
+        inspections: inspectionsRes.data?.length ? inspectionsRes.data : defaultInspections,
+      }
+    }
+
     await delay(400)
     return getDb()
   },
 
   saveUsers: async (users: UserAccount[]) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('users').upsert(users)
+      if (error) console.error('Supabase Error:', error)
+      return true
+    }
     await delay(300)
     const db = getDb()
     db.users = users
@@ -143,6 +228,11 @@ export const api = {
   },
 
   saveItems: async (items: ChecklistItem[]) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('items').upsert(items)
+      if (error) console.error('Supabase Error:', error)
+      return true
+    }
     await delay(200)
     const db = getDb()
     db.items = items
@@ -151,6 +241,11 @@ export const api = {
   },
 
   saveFacilities: async (facilities: Facility[]) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('facilities').upsert(facilities)
+      if (error) console.error('Supabase Error:', error)
+      return true
+    }
     await delay(200)
     const db = getDb()
     db.facilities = facilities
@@ -159,6 +254,11 @@ export const api = {
   },
 
   saveEvaluators: async (evaluators: Evaluator[]) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('evaluators').upsert(evaluators)
+      if (error) console.error('Supabase Error:', error)
+      return true
+    }
     await delay(200)
     const db = getDb()
     db.evaluators = evaluators
@@ -167,6 +267,11 @@ export const api = {
   },
 
   saveContacts: async (contacts: Contact[]) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('contacts').upsert(contacts)
+      if (error) console.error('Supabase Error:', error)
+      return true
+    }
     await delay(200)
     const db = getDb()
     db.contacts = contacts
@@ -175,24 +280,50 @@ export const api = {
   },
 
   syncInspections: async (inspections: Inspection[]) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('inspections')
+        .upsert(inspections.map((i) => ({ ...i, isSynced: true })))
+        .select()
+
+      if (error) {
+        console.error('Supabase Error:', error)
+        throw error
+      }
+
+      const { data: allInspections } = await supabase
+        .from('inspections')
+        .select('*')
+        .order('date', { ascending: false })
+      return allInspections || []
+    }
+
     await delay(600)
     const db = getDb()
-
-    // Merge remote and local state
     const dbMap = new Map(db.inspections.map((i) => [i.id, i]))
     for (const insp of inspections) {
       dbMap.set(insp.id, { ...insp, isSynced: true })
     }
-
     db.inspections = Array.from(dbMap.values()).sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     )
     saveDb(db)
-
     return db.inspections
   },
 
   onSync: (callback: () => void) => {
+    if (isSupabaseConfigured && supabase) {
+      const channel = supabase
+        .channel('schema-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+          callback()
+        })
+        .subscribe()
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    }
+
     if (typeof BroadcastChannel !== 'undefined') {
       const channel = new BroadcastChannel(SYNC_CHANNEL)
       channel.onmessage = (event) => {
