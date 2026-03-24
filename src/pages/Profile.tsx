@@ -86,8 +86,8 @@ export default function Profile() {
     reader.readAsDataURL(file)
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     toast.success('Sessão encerrada.')
   }
 

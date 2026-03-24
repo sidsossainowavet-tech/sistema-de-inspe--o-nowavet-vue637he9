@@ -8,12 +8,9 @@ import {
 } from './defaults'
 
 // ============================================================================
-// MOCK CLOUD DATABASE SERVICE
-// This module perfectly simulates a remote backend API.
-// In the Skip Cloud production environment, this is replaced by the native KV store.
-// We use localStorage here strictly to mock the network latency and persistence
-// of a centralized database, ensuring the architecture is fully decoupled from
-// the local browser state.
+// SKIP CLOUD SDK MOCK
+// Simulates the Skip Cloud centralized KV storage and Authentication service.
+// Uses cross-tab BroadcastChannel to mock real-time cross-device synchronization.
 // ============================================================================
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -50,28 +47,50 @@ interface CloudDB {
   inspections: Inspection[]
 }
 
+const DB_KEY = 'skip_cloud_db_v2'
+const AUTH_KEY = 'skip_cloud_auth_token'
+const SYNC_CHANNEL = 'skip_cloud_sync_channel'
+
 const getDb = (): CloudDB => {
-  const saved = localStorage.getItem('nowavet_cloud_db')
-  if (saved) return JSON.parse(saved)
-  const initial: CloudDB = {
-    users: DEFAULT_USERS,
-    items: defaultItems,
-    facilities: defaultFacilities,
-    evaluators: defaultEvaluators,
-    contacts: defaultContacts,
-    inspections: defaultInspections,
+  const saved = localStorage.getItem(DB_KEY)
+  let db: CloudDB
+  if (saved) {
+    db = JSON.parse(saved)
+    // Enforce master admin configuration is present to ensure universal login
+    if (!db.users.some((u) => u.email === MASTER_ADMIN.email)) {
+      db.users.push(MASTER_ADMIN)
+      localStorage.setItem(DB_KEY, JSON.stringify(db))
+    }
+  } else {
+    db = {
+      users: DEFAULT_USERS,
+      items: defaultItems,
+      facilities: defaultFacilities,
+      evaluators: defaultEvaluators,
+      contacts: defaultContacts,
+      inspections: defaultInspections,
+    }
+    localStorage.setItem(DB_KEY, JSON.stringify(db))
   }
-  localStorage.setItem('nowavet_cloud_db', JSON.stringify(initial))
-  return initial
+  return db
 }
 
 const saveDb = (db: CloudDB) => {
-  localStorage.setItem('nowavet_cloud_db', JSON.stringify(db))
+  localStorage.setItem(DB_KEY, JSON.stringify(db))
+  notifySync()
+}
+
+const notifySync = () => {
+  if (typeof BroadcastChannel !== 'undefined') {
+    const channel = new BroadcastChannel(SYNC_CHANNEL)
+    channel.postMessage({ type: 'DATA_UPDATED' })
+    channel.close()
+  }
 }
 
 export const api = {
   login: async (email: string, pass: string) => {
-    await delay(800)
+    await delay(600)
     const db = getDb()
     const user = db.users.find((u) => u.email === email && u.password === pass)
 
@@ -82,21 +101,31 @@ export const api = {
       throw new Error('Sua conta está inativa. Entre em contato com o administrador.')
     }
 
-    const token = btoa(`${user.id}-${Date.now()}`)
+    const payload = { id: user.id, ts: Date.now() }
+    const token = btoa(JSON.stringify(payload))
+    localStorage.setItem(AUTH_KEY, token)
     return { token, user }
   },
 
-  verifySession: async (token: string) => {
+  logout: async () => {
     await delay(300)
+    localStorage.removeItem(AUTH_KEY)
+  },
+
+  verifySession: async () => {
+    await delay(400)
+    const token = localStorage.getItem(AUTH_KEY)
+    if (!token) throw new Error('No session')
+
     try {
-      const decoded = atob(token)
-      const userId = decoded.split('-')[0]
+      const decoded = JSON.parse(atob(token))
       const db = getDb()
-      const user = db.users.find((u) => u.id === userId)
+      const user = db.users.find((u) => u.id === decoded.id)
       if (user && user.active) return user
-      throw new Error('Sessão inválida')
+      throw new Error('Invalid session')
     } catch {
-      throw new Error('Sessão inválida')
+      localStorage.removeItem(AUTH_KEY)
+      throw new Error('Invalid session')
     }
   },
 
@@ -161,5 +190,18 @@ export const api = {
     saveDb(db)
 
     return db.inspections
+  },
+
+  onSync: (callback: () => void) => {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel(SYNC_CHANNEL)
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'DATA_UPDATED') {
+          callback()
+        }
+      }
+      return () => channel.close()
+    }
+    return () => {}
   },
 }

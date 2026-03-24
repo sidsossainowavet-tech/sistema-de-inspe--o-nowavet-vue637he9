@@ -28,13 +28,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Edit, ShieldAlert, Shield, UserPlus, Loader2 } from 'lucide-react'
+import { Edit, ShieldAlert, Shield, UserPlus, Loader2, Cloud } from 'lucide-react'
 import { UserAccount } from '@/lib/types'
 import { toast } from 'sonner'
 import { Navigate } from 'react-router-dom'
 
 export default function UsersManagement() {
-  const { users, setUsers, profile } = useAppContext()
+  const { users, setUsers, profile, isSyncing } = useAppContext()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<UserAccount | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -125,8 +125,15 @@ export default function UsersManagement() {
   return (
     <div className="space-y-6 pb-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Equipe</h1>
-        <p className="text-muted-foreground">Controle de acessos e permissões do sistema</p>
+        <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-3">
+          Gestão de Equipe
+        </h1>
+        <p className="text-muted-foreground flex items-center gap-1 mt-1">
+          <Cloud
+            className={isSyncing ? 'w-4 h-4 text-accent animate-pulse' : 'w-4 h-4 text-primary'}
+          />
+          Conectado e sincronizado em tempo real via Skip Cloud
+        </p>
       </div>
 
       <Card>

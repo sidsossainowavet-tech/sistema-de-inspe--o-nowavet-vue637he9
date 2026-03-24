@@ -29,7 +29,7 @@ interface AppState {
   isAuthenticated: boolean
   isCheckingSession: boolean
   login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>
-  logout: () => void
+  logout: () => Promise<void>
   addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => void
   syncData: () => Promise<void>
   updateProfile: (profile: UserProfile) => Promise<void>
@@ -88,26 +88,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [])
 
+  // Real-time synchronization subscription
+  useEffect(() => {
+    const unsubscribe = api.onSync(() => {
+      if (isAuthenticated) {
+        loadCloudData()
+      }
+    })
+    return unsubscribe
+  }, [isAuthenticated])
+
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('nowavet_session_token')
-      if (token) {
-        try {
-          const user = await api.verifySession(token)
-          setProfile({
-            name: user.name,
-            email: user.email,
-            phone: '',
-            avatar: user.avatar || '',
-            role: user.role,
-          })
-          setIsAuthenticated(true)
-          await loadCloudData()
-        } catch {
-          localStorage.removeItem('nowavet_session_token')
-          setIsAuthenticated(false)
-        }
-      } else {
+      try {
+        const user = await api.verifySession()
+        setProfile({
+          name: user.name,
+          email: user.email,
+          phone: '',
+          avatar: user.avatar || '',
+          role: user.role,
+        })
+        setIsAuthenticated(true)
+        await loadCloudData()
+      } catch {
         setIsAuthenticated(false)
       }
       setIsCheckingSession(false)
@@ -170,8 +174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const login = async (email: string, pass: string) => {
     try {
-      const { token, user } = await api.login(email, pass)
-      localStorage.setItem('nowavet_session_token', token)
+      const { user } = await api.login(email, pass)
       setProfile({
         name: user.name,
         email: user.email,
@@ -187,9 +190,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await api.logout()
     setIsAuthenticated(false)
-    localStorage.removeItem('nowavet_session_token')
     setItemsState([])
     setFacilitiesState([])
     setEvaluatorsState([])
