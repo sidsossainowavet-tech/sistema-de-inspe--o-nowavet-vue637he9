@@ -8,9 +8,10 @@ import { toast } from 'sonner'
 import { Save, Send, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Inspection } from '@/lib/types'
+import { SystemLogger } from '@/lib/logger'
 
 export function ContactsManager() {
-  const { contacts, updateContacts } = useAppContext()
+  const { contacts, updateContacts, profile } = useAppContext()
   const [isTesting, setIsTesting] = useState(false)
 
   const handleContactChange = (index: number, field: keyof (typeof contacts)[0], value: string) => {
@@ -25,6 +26,7 @@ export function ContactsManager() {
 
   const handleTestConnection = async () => {
     setIsTesting(true)
+    SystemLogger.logAudit(profile.email, 'Início de Teste de Conexão (Envios)')
     try {
       const dummyInspection: Inspection = {
         id: 'test-' + Date.now(),
@@ -46,8 +48,10 @@ export function ContactsManager() {
 
       if (result.emailError) {
         toast.error(`❌ Erro no E-mail: ${result.emailError}`, { duration: 10000 })
+        SystemLogger.logError(profile.email, 'Teste de Conexão (E-mail)', result.emailError)
       } else {
         toast.success('✅ E-mail disparado e aceito pelo servidor com sucesso!')
+        SystemLogger.logAudit(profile.email, 'Teste de Conexão E-mail bem-sucedido')
       }
 
       if (result.whatsappError) {
@@ -58,12 +62,15 @@ export function ContactsManager() {
           toast.warning(`⚠️ Aviso WhatsApp: ${result.whatsappError}`, { duration: 8000 })
         } else {
           toast.error(`❌ Erro no WhatsApp: ${result.whatsappError}`, { duration: 10000 })
+          SystemLogger.logError(profile.email, 'Teste de Conexão (WhatsApp)', result.whatsappError)
         }
       } else {
         toast.success('✅ Mensagem de WhatsApp processada pelo provedor com sucesso!')
+        SystemLogger.logAudit(profile.email, 'Teste de Conexão WhatsApp bem-sucedido')
       }
     } catch (err: any) {
       toast.error(`🚨 Falha Crítica na Comunicação: ${err.message}`, { duration: 10000 })
+      SystemLogger.logError(profile.email, 'Teste de Conexão Crítico', err.message)
     } finally {
       setIsTesting(false)
     }

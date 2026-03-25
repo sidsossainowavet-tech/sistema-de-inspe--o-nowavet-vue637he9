@@ -3,6 +3,8 @@ import { ItemsManager } from '@/components/settings/ItemsManager'
 import { FacilitiesManager } from '@/components/settings/FacilitiesManager'
 import { EvaluatorsManager } from '@/components/settings/EvaluatorsManager'
 import { ContactsManager } from '@/components/settings/ContactsManager'
+import { AuditLogsViewer } from '@/components/settings/AuditLogsViewer'
+import { ErrorLogsViewer } from '@/components/settings/ErrorLogsViewer'
 import { Navigate } from 'react-router-dom'
 import { useAppContext } from '@/store/AppContext'
 
@@ -34,6 +36,15 @@ export default function Settings() {
           <TabsTrigger value="contacts" className="flex-1 min-w-[100px]">
             Notificações
           </TabsTrigger>
+          <TabsTrigger value="audit" className="flex-1 min-w-[100px]">
+            Auditoria
+          </TabsTrigger>
+          <TabsTrigger
+            value="errors"
+            className="flex-1 min-w-[100px] text-destructive data-[state=active]:text-destructive"
+          >
+            Erros
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="items" className="mt-4">
@@ -47,6 +58,12 @@ export default function Settings() {
         </TabsContent>
         <TabsContent value="contacts" className="mt-4">
           <ContactsManager />
+        </TabsContent>
+        <TabsContent value="audit" className="mt-4">
+          <AuditLogsViewer />
+        </TabsContent>
+        <TabsContent value="errors" className="mt-4">
+          <ErrorLogsViewer />
         </TabsContent>
       </Tabs>
     </div>

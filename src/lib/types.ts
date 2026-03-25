@@ -72,3 +72,20 @@ export interface UserAccount {
   password?: string
   avatar?: string
 }
+
+export interface AuditLog {
+  id: string
+  user_email: string
+  action: string
+  details?: any
+  created_at: string
+}
+
+export interface ErrorLog {
+  id: string
+  user_email?: string
+  context: string
+  error_message: string
+  details?: any
+  created_at: string
+}

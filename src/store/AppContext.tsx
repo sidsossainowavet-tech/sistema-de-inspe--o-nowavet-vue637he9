@@ -12,6 +12,7 @@ import { api } from '@/lib/api'
 import { defaultProfile } from '@/lib/defaults'
 import { useAuth } from '@/hooks/use-auth'
 import { toast } from 'sonner'
+import { SystemLogger } from '@/lib/logger'
 
 interface AppState {
   items: ChecklistItem[]
@@ -195,7 +196,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const login = async (email: string, pass: string) => {
     const { error } = await auth.signIn(email, pass)
-    if (error) return { success: false, message: 'Credenciais inválidas.' }
+    if (error) {
+      SystemLogger.logError(email, 'Autenticação', 'Credenciais inválidas', { err: error.message })
+      return { success: false, message: 'Credenciais inválidas.' }
+    }
 
     try {
       const u = await api.verifyUser(email)
@@ -208,14 +212,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       setIsAuthenticated(true)
       await loadCloudData()
+      SystemLogger.logAudit(email, 'Login efetuado no sistema')
       return { success: true }
-    } catch (err) {
+    } catch (err: any) {
       await auth.signOut()
+      SystemLogger.logError(email, 'Autenticação', 'Usuário não cadastrado', { err: err.message })
       return { success: false, message: 'Usuário não cadastrado na base de dados.' }
     }
   }
 
   const logout = async () => {
+    SystemLogger.logAudit(profile.email, 'Logout efetuado')
     await auth.signOut()
     setIsAuthenticated(false)
     setItemsState([])
@@ -245,15 +252,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               toast.warning(
                 `Sincronização (${insp.structure}): Erro no e-mail - ${result.emailError}`,
               )
+              SystemLogger.logError(
+                profile.email,
+                'Sincronização Automática (E-mail)',
+                result.emailError,
+                { inspectionId: insp.id },
+              )
             }
             if (result && result.whatsappError && !result.whatsappError.includes('Simulação')) {
               toast.warning(
                 `Sincronização (${insp.structure}): Erro no WhatsApp - ${result.whatsappError}`,
               )
+              SystemLogger.logError(
+                profile.email,
+                'Sincronização Automática (WhatsApp)',
+                result.whatsappError,
+                { inspectionId: insp.id },
+              )
             }
+            SystemLogger.logAudit(profile.email, 'Inspeção sincronizada', {
+              inspectionId: insp.id,
+              structure: insp.structure,
+            })
           } catch (e: any) {
             console.error('Falha na sincronização da inspeção:', insp.id, e)
             toast.error(`Aviso (${insp.structure}): ${e.message}`)
+            SystemLogger.logError(profile.email, 'Falha Geral na Sincronização', e.message, {
+              inspectionId: insp.id,
+            })
             remaining.push(insp)
           }
         }
@@ -290,6 +316,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const result = await api.sendInspectionEmail(newInspection, contacts)
         await api.saveInspection(newInspection)
+        SystemLogger.logAudit(profile.email, 'Nova inspeção registrada', {
+          inspectionId: newInspection.id,
+          structure: newInspection.structure,
+        })
 
         const textOnlyAnswers = newInspection.answers.map((a) => {
           const { photo, ...rest } = a
@@ -301,12 +331,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           toast.warning(`Relatório salvo, mas ocorreu erro no E-mail: ${result.emailError}`, {
             duration: 6000,
           })
+          SystemLogger.logError(profile.email, 'Envio de Relatório (E-mail)', result.emailError, {
+            inspectionId: newInspection.id,
+          })
         } else {
           toast.success('Relatório gerado e enviado por e-mail com sucesso!')
         }
 
         if (result.whatsappError && !result.whatsappError.includes('Simulação')) {
           toast.warning(`Erro no envio via WhatsApp: ${result.whatsappError}`, { duration: 6000 })
+          SystemLogger.logError(
+            profile.email,
+            'Envio de Relatório (WhatsApp)',
+            result.whatsappError,
+            { inspectionId: newInspection.id },
+          )
         } else {
           toast.success('Relatório também encaminhado para o WhatsApp cadastrado (com fotos)!')
         }
@@ -320,12 +359,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             duration: 8000,
           },
         )
+        SystemLogger.logError(profile.email, 'Processamento Crítico de Inspeção', e.message, {
+          inspectionId: newInspection.id,
+        })
         setInspectionsState((prev) => [newInspection, ...prev])
       } finally {
         setIsSyncing(false)
       }
     } else {
       setInspectionsState((prev) => [newInspection, ...prev])
+      SystemLogger.logAudit(profile.email, 'Nova inspeção registrada (Offline)', {
+        inspectionId: newInspection.id,
+        structure: newInspection.structure,
+      })
       toast.info(
         'Modo Offline. Inspeção salva localmente com fotos. Será sincronizada assim que reconectar.',
       )
@@ -340,6 +386,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateProfile = async (newProfile: UserProfile) => {
     setProfile(newProfile)
+    SystemLogger.logAudit(profile.email, 'Perfil atualizado', { role: newProfile.role })
     return new Promise<void>((resolve) => {
       setUsersState((prev) => {
         const next = prev.map((u) =>
@@ -359,6 +406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'Tem certeza? Isso apagará todas as inspeções locais não sincronizadas permanentemente.',
       )
     ) {
+      SystemLogger.logAudit(profile.email, 'Limpeza de cache local de inspeções')
       setInspectionsState([])
       localStorage.removeItem('nowavet_local_inspections')
       if (navigator.onLine) {
