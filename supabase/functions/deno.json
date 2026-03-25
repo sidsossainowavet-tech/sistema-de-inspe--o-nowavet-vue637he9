@@ -1,6 +1,7 @@
 {
   "_versions": {
-    "send-inspection-report": 14,
-    "manage-user": 8
+    "send-inspection-report": 15,
+    "manage-user": 8,
+    "archive-inspections": 1
   }
 }

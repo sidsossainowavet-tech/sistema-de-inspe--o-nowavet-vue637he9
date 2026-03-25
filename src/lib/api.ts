@@ -192,6 +192,37 @@ export const api = {
     return { success: true }
   },
 
+  archiveInspections: async (all: boolean = false) => {
+    if (supabase) {
+      const { data, error } = await supabase.functions.invoke('archive-inspections', {
+        body: { all },
+      })
+      if (error) throw new Error(`Erro na comunicação com o servidor: ${error.message}`)
+      if (data && data.success === false)
+        throw new Error(data.error || 'Falha ao arquivar inspeções')
+      return data
+    }
+    return { success: true, message: 'Mock archive successful', archivedCount: 0 }
+  },
+
+  getArchivedFiles: async () => {
+    if (supabase) {
+      const { data, error } = await supabase.storage.from('archived_inspections').list()
+      if (error) throw error
+      return data
+    }
+    return []
+  },
+
+  downloadArchive: async (fileName: string) => {
+    if (supabase) {
+      const { data, error } = await supabase.storage.from('archived_inspections').download(fileName)
+      if (error) throw error
+      return data
+    }
+    return null
+  },
+
   onSync: (callback: () => void) => {
     if (supabase) {
       const channel = supabase
