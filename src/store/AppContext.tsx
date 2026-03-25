@@ -215,7 +215,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = async (email: string, pass: string) => {
     const { error } = await auth.signIn(email, pass)
     if (error) {
-      SystemLogger.logError(email, 'Autenticação', 'Credenciais inválidas', { err: error.message })
+      await SystemLogger.logError(email, 'Autenticação', 'Credenciais inválidas', {
+        err: error.message,
+      })
       return { success: false, message: 'Credenciais inválidas.' }
     }
 
@@ -230,17 +232,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       setIsAuthenticated(true)
       await loadCloudData()
-      SystemLogger.logAudit(email, 'Login efetuado no sistema')
+      await SystemLogger.logAudit(email, 'Login efetuado no sistema')
       return { success: true }
     } catch (err: any) {
+      await SystemLogger.logError(email, 'Autenticação', 'Usuário não cadastrado', {
+        err: err.message,
+      })
       await auth.signOut()
-      SystemLogger.logError(email, 'Autenticação', 'Usuário não cadastrado', { err: err.message })
       return { success: false, message: 'Usuário não cadastrado na base de dados.' }
     }
   }
 
   const logout = async () => {
-    SystemLogger.logAudit(profile.email, 'Logout efetuado')
+    await SystemLogger.logAudit(profile.email, 'Logout efetuado')
     await auth.signOut()
     setIsAuthenticated(false)
     setItemsState([])
