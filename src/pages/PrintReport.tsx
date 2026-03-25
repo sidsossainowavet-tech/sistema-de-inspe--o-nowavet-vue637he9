@@ -32,14 +32,22 @@ export default function PrintReport() {
   const waContact = contacts.find((c) => c.sector === 'Qualidade')?.phone || ''
 
   const handleShare = async () => {
+    const shareText = `Vistoria: ${inspection.structure}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNCs: ${ncs.length}\nGerado pelo app Nowavet.`
+
     if (navigator.share) {
       try {
         await navigator.share({
           title: `Relatório - ${inspection.structure}`,
-          text: `Vistoria: ${inspection.structure}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNCs: ${ncs.length}\nGerado pelo app Nowavet.`,
+          text: shareText,
         })
       } catch (err) {
-        console.error('Erro ao compartilhar', err)
+        console.warn('Compartilhamento nativo bloqueado ou cancelado', err)
+        try {
+          await navigator.clipboard.writeText(shareText)
+          toast.success('Resumo copiado para a área de transferência! Cole onde desejar.')
+        } catch (clipErr) {
+          toast.warning('O compartilhamento foi bloqueado pelo navegador.')
+        }
       }
     } else {
       toast.warning('Compartilhamento nativo não suportado neste dispositivo.')
