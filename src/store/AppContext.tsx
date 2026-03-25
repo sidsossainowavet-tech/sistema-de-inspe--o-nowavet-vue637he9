@@ -140,7 +140,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [auth.user, auth.loading, isAuthenticated])
 
   useEffect(() => {
-    localStorage.setItem('nowavet_local_inspections', JSON.stringify(inspections))
+    localStorage.setItem(
+      'nowavet_local_inspections',
+      JSON.stringify(inspections.filter((i) => !i.isSynced)),
+    )
   }, [inspections])
 
   const setItems = (val: React.SetStateAction<ChecklistItem[]>) => {
@@ -229,13 +232,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const localInspRaw = localStorage.getItem('nowavet_local_inspections')
       const currentInspections: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
       const remaining: Inspection[] = []
+      let syncSuccess = false
 
       for (const insp of currentInspections) {
         if (!insp.isSynced) {
           try {
             await api.sendInspectionEmail(insp, contacts)
             await api.saveInspection(insp)
-          } catch (e) {
+            syncSuccess = true
+          } catch (e: any) {
+            console.error('Falha na sincronização da inspeção:', insp.id, e)
+            toast.error(`Aviso (${insp.structure}): ${e.message}`)
             remaining.push(insp)
           }
         }
@@ -243,9 +250,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (remaining.length > 0) {
         localStorage.setItem('nowavet_local_inspections', JSON.stringify(remaining))
+      } else if (syncSuccess) {
+        localStorage.removeItem('nowavet_local_inspections')
       }
 
       await loadCloudData()
+
+      if (syncSuccess && remaining.length === 0) {
+        toast.success('Todas as inspeções pendentes foram sincronizadas com sucesso!')
+      }
     } catch (e) {
       console.error('Data Sync Error:', e)
     } finally {
@@ -275,9 +288,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         toast.success('Relatório gerado e enviado para auditoria.interna@nowavet.com.br!')
         setInspectionsState((prev) => [textOnlyInsp, ...prev])
-      } catch (e) {
-        console.error(e)
-        toast.error('Erro ao enviar e-mail. Salvo localmente para envio posterior.')
+      } catch (e: any) {
+        console.error('Erro no envio de email:', e)
+        toast.error(
+          `Falha no envio de e-mail: ${e.message}. A inspeção foi salva localmente para reenvio.`,
+          {
+            duration: 8000,
+          },
+        )
         setInspectionsState((prev) => [newInspection, ...prev])
       } finally {
         setIsSyncing(false)

@@ -125,7 +125,6 @@ export const api = {
 
   sendInspectionEmail: async (inspection: Inspection, contacts: Contact[]) => {
     if (supabase) {
-      // Adicionando o email da auditoria interna sempre
       const emailContacts = [
         ...contacts,
         {
@@ -139,7 +138,14 @@ export const api = {
       const { data, error } = await supabase.functions.invoke('send-inspection-report', {
         body: { inspection, contacts: emailContacts },
       })
-      if (error) throw error
+
+      if (error) {
+        throw new Error(`Erro de comunicação com o servidor: ${error.message}`)
+      }
+      if (data && data.success === false) {
+        throw new Error(data.error || 'Falha desconhecida no provedor de e-mail.')
+      }
+
       return data
     }
     console.log('Mock: Inspection email sent for', inspection.id)

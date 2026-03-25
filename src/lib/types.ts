@@ -34,6 +34,7 @@ export interface Evaluator {
 
 export interface Answer {
   itemId: string
+  itemName?: string
   status: StatusType
   photo?: string
   justification?: string

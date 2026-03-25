@@ -3,17 +3,24 @@ import { useAppContext } from '@/store/AppContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { FileText, ClipboardList, AlertTriangle, CloudOff, CheckCircle2, Plus } from 'lucide-react'
+import {
+  FileText,
+  ClipboardList,
+  AlertTriangle,
+  CloudOff,
+  CheckCircle2,
+  Plus,
+  RefreshCw,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function Index() {
-  const { inspections, isOnline } = useAppContext()
+  const { inspections, isOnline, pendingSync, syncData, isSyncing } = useAppContext()
 
   const today = new Date().toISOString().split('T')[0]
   const todayInspections = inspections.filter((i) => i.date.startsWith(today))
-  const pendingSync = inspections.filter((i) => !i.isSynced)
+  const localPendingSync = inspections.filter((i) => !i.isSynced)
 
-  // Count total non-conformities across all inspections today
   const totalNCs = todayInspections.reduce(
     (acc, curr) => acc + curr.answers.filter((a) => a.status === 'NC').length,
     0,
@@ -51,13 +58,23 @@ export default function Index() {
 
         <Card
           className={cn(
-            'border-l-4 shadow-sm hover:shadow-md transition-all',
-            pendingSync.length > 0 ? 'border-l-secondary' : 'border-l-accent',
+            'border-l-4 shadow-sm transition-all',
+            localPendingSync.length > 0
+              ? 'border-l-secondary hover:shadow-md cursor-pointer'
+              : 'border-l-accent',
           )}
+          onClick={() => {
+            if (localPendingSync.length > 0 && !isSyncing) {
+              syncData()
+            }
+          }}
+          title={localPendingSync.length > 0 ? 'Clique para tentar enviar novamente' : ''}
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Sincronização</CardTitle>
-            {pendingSync.length > 0 ? (
+            {isSyncing ? (
+              <RefreshCw className="h-4 w-4 text-secondary animate-spin" />
+            ) : localPendingSync.length > 0 ? (
               <CloudOff className="h-4 w-4 text-secondary" />
             ) : (
               <CheckCircle2 className="h-4 w-4 text-accent" />
@@ -65,9 +82,14 @@ export default function Index() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {pendingSync.length}{' '}
+              {localPendingSync.length}{' '}
               <span className="text-sm font-normal text-muted-foreground">pendentes</span>
             </div>
+            {localPendingSync.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1 underline decoration-dashed">
+                Clique para reenviar
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -125,11 +147,11 @@ export default function Index() {
                       >
                         {insp.isSynced ? (
                           <>
-                            <CheckCircle2 className="h-3 w-3" /> Sincronizado
+                            <CheckCircle2 className="h-3 w-3" /> Enviado
                           </>
                         ) : (
                           <>
-                            <CloudOff className="h-3 w-3" /> Pendente
+                            <CloudOff className="h-3 w-3" /> Pendente Envio
                           </>
                         )}
                       </span>

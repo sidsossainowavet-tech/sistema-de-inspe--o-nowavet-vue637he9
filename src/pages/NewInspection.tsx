@@ -83,7 +83,16 @@ export default function NewInspection() {
       ? Math.floor((new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000)
       : 0
 
-    const finalAnswers = Object.values(answers).filter((a) => a.status)
+    const finalAnswers = Object.values(answers)
+      .filter((a) => a.status)
+      .map((a) => {
+        const itemDef = items.find((i) => i.id === a.itemId)
+        return {
+          ...a,
+          itemName: itemDef?.name || a.itemId,
+        }
+      })
+
     const ncs = finalAnswers.filter((a) => a.status === 'NC').length
 
     setIsLoading(true)
@@ -132,10 +141,11 @@ export default function NewInspection() {
         <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-2 shadow-sm">
           <MailCheck className="w-12 h-12" />
         </div>
-        <h1 className="text-3xl font-bold text-primary">Relatório Enviado!</h1>
+        <h1 className="text-3xl font-bold text-primary">Relatório Processado!</h1>
         <p className="text-muted-foreground text-lg max-w-md">
-          A inspeção foi enviada para <strong>auditoria.interna@nowavet.com.br</strong> e demais
-          responsáveis. As informações textuais foram atualizadas em nuvem.
+          A tentativa de envio para <strong>auditoria.interna@nowavet.com.br</strong> foi realizada.
+          Caso tenha ocorrido alguma falha de conexão, ele estará pendente para sincronização no
+          Início.
         </p>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-6">
