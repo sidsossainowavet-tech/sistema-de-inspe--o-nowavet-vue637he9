@@ -32,6 +32,7 @@ import { Edit, ShieldAlert, Shield, UserPlus, Loader2, Cloud } from 'lucide-reac
 import { UserAccount } from '@/lib/types'
 import { toast } from 'sonner'
 import { Navigate } from 'react-router-dom'
+import { api, isSupabaseConfigured } from '@/lib/api'
 
 export default function UsersManagement() {
   const { users, setUsers, profile, isSyncing } = useAppContext()
@@ -53,7 +54,7 @@ export default function UsersManagement() {
       setEditing(u)
       setName(u.name)
       setEmail(u.email)
-      setPassword(u.password || '')
+      setPassword('')
       setRole(u.role)
     } else {
       setEditing(null)
@@ -82,31 +83,35 @@ export default function UsersManagement() {
     setIsLoading(true)
     try {
       if (editing) {
-        await setUsers(
-          users.map((u) =>
-            u.id === editing.id ? { ...u, name, email, password: password || u.password, role } : u,
-          ),
-        )
+        if (isSupabaseConfigured) {
+          await api.manageUser('update', { id: editing.id, name, email, role }, password)
+        }
+        await setUsers(users.map((u) => (u.id === editing.id ? { ...u, name, email, role } : u)))
         toast.success('Usuário atualizado com sucesso.')
       } else {
-        await setUsers([
-          ...users,
-          {
-            id: crypto.randomUUID(),
-            name,
-            email,
-            password,
-            role,
-            active: true,
-          },
-        ])
-        toast.success(
-          'Usuário criado com sucesso. (Nota: Para login na nuvem, o usuário também precisa de registro Auth)',
-        )
+        const newId = crypto.randomUUID()
+        if (isSupabaseConfigured) {
+          await api.manageUser('create', { id: newId, name, email, role, active: true }, password)
+          // Fetch fresh list to obtain correct auth UUID from the backend immediately
+          const data = await api.getAppData()
+          await setUsers(data.users)
+        } else {
+          await setUsers([
+            ...users,
+            {
+              id: newId,
+              name,
+              email,
+              role,
+              active: true,
+            },
+          ])
+        }
+        toast.success('Usuário criado com sucesso e pronto para acesso.')
       }
       setOpen(false)
-    } catch (e) {
-      toast.error('Erro ao salvar usuário.')
+    } catch (e: any) {
+      toast.error(`Erro ao salvar usuário: ${e.message}`)
     } finally {
       setIsLoading(false)
     }
@@ -117,10 +122,13 @@ export default function UsersManagement() {
       return toast.error('Você não pode inativar sua própria conta.')
     }
     try {
+      if (isSupabaseConfigured) {
+        await api.manageUser('update_status', { id: user.id, active: !user.active })
+      }
       await setUsers(users.map((u) => (u.id === user.id ? { ...u, active: !u.active } : u)))
       toast.success(`Usuário ${!user.active ? 'ativado' : 'inativado'} com sucesso.`)
-    } catch (e) {
-      toast.error('Erro ao atualizar status.')
+    } catch (e: any) {
+      toast.error(`Erro ao atualizar status: ${e.message}`)
     }
   }
 
@@ -134,7 +142,7 @@ export default function UsersManagement() {
           <Cloud
             className={isSyncing ? 'w-4 h-4 text-accent animate-pulse' : 'w-4 h-4 text-primary'}
           />
-          Conectado e sincronizado com base Supabase centralizada
+          Conectado e sincronizado com base centralizada
         </p>
       </div>
 

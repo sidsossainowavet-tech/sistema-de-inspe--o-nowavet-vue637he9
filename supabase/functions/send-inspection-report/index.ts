@@ -1,44 +1,49 @@
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { corsHeaders } from '../_shared/cors.ts';
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
+import { corsHeaders } from '../_shared/cors.ts'
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const body = await req.json();
-    const inspection = body.inspection || {};
-    let contacts = body.contacts || [];
+    const body = await req.json()
+    const inspection = body.inspection || {}
+    let contacts = body.contacts || []
 
     // Assegura que a auditoria está na lista de contatos
     if (!contacts.some((c: any) => c.email === 'auditoria.interna@nowavet.com.br')) {
-       contacts.push({ email: 'auditoria.interna@nowavet.com.br', sector: 'Auditoria Interna' });
+      contacts.push({ email: 'auditoria.interna@nowavet.com.br', sector: 'Auditoria Interna' })
     }
 
-    const toEmails = [...new Set(contacts.map((c: any) => c.email).filter(Boolean))];
+    const toEmails = [...new Set(contacts.map((c: any) => c.email).filter(Boolean))]
 
     if (!RESEND_API_KEY) {
-      throw new Error('Chave de API do Resend (RESEND_API_KEY) não configurada no servidor Supabase. Configure-a para habilitar o envio de e-mails.');
+      throw new Error(
+        'Chave de API do Resend (RESEND_API_KEY) não configurada no servidor Supabase. Configure-a para habilitar o envio de e-mails.',
+      )
     }
 
     // HTML Template Builder
-    const answersHtml = (inspection.answers || []).map((a: any) => {
-      const bgColor = a.status === 'NC' ? '#fef2f2' : '#f8fafc';
-      const borderColor = a.status === 'NC' ? '#ef4444' : (a.status === 'C' ? '#22c55e' : '#cbd5e1');
-      const statusText = a.status === 'C' ? 'Conforme' : (a.status === 'NC' ? 'Não Conforme' : 'N/A');
-      
-      return `
+    const answersHtml = (inspection.answers || [])
+      .map((a: any) => {
+        const bgColor = a.status === 'NC' ? '#fef2f2' : '#f8fafc'
+        const borderColor = a.status === 'NC' ? '#ef4444' : a.status === 'C' ? '#22c55e' : '#cbd5e1'
+        const statusText =
+          a.status === 'C' ? 'Conforme' : a.status === 'NC' ? 'Não Conforme' : 'N/A'
+
+        return `
         <div style="margin-bottom: 15px; padding: 15px; border-radius: 6px; background-color: ${bgColor}; border-left: 4px solid ${borderColor};">
           <div style="font-weight: bold; margin-bottom: 5px;">${a.itemName || `Item ID: ${a.itemId}`}</div>
           <div>Status: <strong>${statusText}</strong></div>
           ${a.status === 'NC' && a.justification ? `<div style="margin-top: 10px; color: #b91c1c;"><strong>Justificativa:</strong> ${a.justification}</div>` : ''}
           ${a.photo ? `<div style="margin-top: 10px; font-size: 12px; color: #64748b;">(Foto de evidência anexada ao e-mail)</div>` : ''}
         </div>
-      `;
-    }).join('');
+      `
+      })
+      .join('')
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
@@ -63,25 +68,28 @@ Deno.serve(async (req: Request) => {
           As fotos de evidência encontram-se como anexos neste e-mail.
         </div>
       </div>
-    `;
+    `
 
     // Extract base64 attachments
-    const attachments = [];
-    let attachmentIndex = 1;
-    for (const answer of (inspection.answers || [])) {
+    const attachments = []
+    let attachmentIndex = 1
+    for (const answer of inspection.answers || []) {
       if (answer.photo && answer.photo.startsWith('data:image')) {
-        const base64Data = answer.photo.split(',')[1];
-        let extension = 'jpg';
-        if (answer.photo.includes('image/png')) extension = 'png';
-        if (answer.photo.includes('image/jpeg')) extension = 'jpg';
-        
-        const itemNameSlug = (answer.itemName || answer.itemId).replace(/[^a-z0-9]/gi, '_').toLowerCase().slice(0, 20);
+        const base64Data = answer.photo.split(',')[1]
+        let extension = 'jpg'
+        if (answer.photo.includes('image/png')) extension = 'png'
+        if (answer.photo.includes('image/jpeg')) extension = 'jpg'
+
+        const itemNameSlug = (answer.itemName || answer.itemId)
+          .replace(/[^a-z0-9]/gi, '_')
+          .toLowerCase()
+          .slice(0, 20)
 
         attachments.push({
           filename: `evidencia_${attachmentIndex}_${itemNameSlug}.${extension}`,
-          content: base64Data
-        });
-        attachmentIndex++;
+          content: base64Data,
+        })
+        attachmentIndex++
       }
     }
 
@@ -89,41 +97,43 @@ Deno.serve(async (req: Request) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RESEND_API_KEY}`
+        Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
         from: 'Nowavet Inspeções <onboarding@resend.dev>', // Usar domínio verificado caso tenha
         to: toEmails,
         subject: `[Nowavet] Relatório de Inspeção - ${inspection.structure}`,
         html: html,
-        attachments: attachments
-      })
-    });
+        attachments: attachments,
+      }),
+    })
 
     if (!res.ok) {
-      const errData = await res.text();
-      let errMsg = errData;
+      const errData = await res.text()
+      let errMsg = errData
       try {
-        const parsed = JSON.parse(errData);
-        errMsg = parsed.message || parsed.error || errData;
+        const parsed = JSON.parse(errData)
+        errMsg = parsed.message || parsed.error || errData
       } catch (e) {}
-      throw new Error(`Falha na API do provedor de e-mail: ${errMsg}`);
+      throw new Error(`Falha na API do provedor de e-mail: ${errMsg}`)
     }
 
-    const resData = await res.json();
+    const resData = await res.json()
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'Relatório processado e enviado com sucesso.',
-      id: resData.id
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Relatório processado e enviado com sucesso.',
+        id: resData.id,
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    )
   } catch (err: any) {
-    console.error('[EDGE FUNCTION ERROR]', err.message);
+    console.error('[EDGE FUNCTION ERROR]', err.message)
     return new Response(JSON.stringify({ success: false, error: err.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    })
   }
-});
+})

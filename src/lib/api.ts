@@ -69,30 +69,70 @@ export const api = {
     }
   },
 
+  manageUser: async (
+    action: 'create' | 'update' | 'update_status',
+    userData: any,
+    password?: string,
+  ) => {
+    if (supabase) {
+      const { data, error } = await supabase.functions.invoke('manage-user', {
+        body: { action, userData, password },
+      })
+      if (error) throw new Error(`Erro na comunicação com o servidor: ${error.message}`)
+      if (data && data.success === false)
+        throw new Error(data.error || 'Falha ao gerenciar usuário')
+      return data
+    }
+  },
+
   saveUsers: async (users: UserAccount[]) => {
-    if (supabase) await supabase.from('users').upsert(users)
+    if (supabase) {
+      const dbUsers = users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        active: u.active,
+        avatar: u.avatar || null,
+      }))
+      const { error } = await supabase.from('users').upsert(dbUsers)
+      if (error) console.error('Error saving users:', error)
+    }
   },
 
   saveItems: async (items: ChecklistItem[]) => {
-    if (supabase) await supabase.from('items').upsert(items)
+    if (supabase) {
+      const { error } = await supabase.from('items').upsert(items)
+      if (error) console.error('Error saving items:', error)
+    }
   },
 
   saveFacilities: async (facilities: Facility[]) => {
     if (supabase) {
-      const mapped = facilities.map(({ frequencyDays, ...f }) => ({
-        ...f,
-        frequency_days: frequencyDays,
+      const mapped = facilities.map((f) => ({
+        id: f.id,
+        name: f.name,
+        description: f.description,
+        frequency_days: f.frequencyDays || null,
+        category: f.category || null,
       }))
-      await supabase.from('facilities').upsert(mapped)
+      const { error } = await supabase.from('facilities').upsert(mapped)
+      if (error) console.error('Error saving facilities:', error)
     }
   },
 
   saveEvaluators: async (evaluators: Evaluator[]) => {
-    if (supabase) await supabase.from('evaluators').upsert(evaluators)
+    if (supabase) {
+      const { error } = await supabase.from('evaluators').upsert(evaluators)
+      if (error) console.error('Error saving evaluators:', error)
+    }
   },
 
   saveContacts: async (contacts: Contact[]) => {
-    if (supabase) await supabase.from('contacts').upsert(contacts)
+    if (supabase) {
+      const { error } = await supabase.from('contacts').upsert(contacts)
+      if (error) console.error('Error saving contacts:', error)
+    }
   },
 
   saveInspection: async (inspection: Inspection) => {
