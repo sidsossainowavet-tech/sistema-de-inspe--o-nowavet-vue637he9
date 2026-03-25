@@ -19,7 +19,6 @@ Deno.serve(async (req: Request) => {
     const { action, userData, password } = await req.json()
 
     if (action === 'create') {
-      // 1. Create user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: userData.email,
         password: password,
@@ -33,7 +32,6 @@ Deno.serve(async (req: Request) => {
 
       const finalUserId = authData?.user?.id || userData.id
 
-      // 2. Insert or update in public.users
       const { error: dbError } = await supabase.from('users').upsert(
         {
           id: finalUserId,
@@ -54,7 +52,6 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'update') {
       if (password) {
-        // Try to update auth password
         const {
           data: { users },
           error: listError,
