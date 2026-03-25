@@ -69,9 +69,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const localInspRaw = localStorage.getItem('nowavet_local_inspections')
       const localInsp: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
       const pendingLocal = localInsp.filter((i) => !i.isSynced)
-      setInspectionsState(pendingLocal)
+
+      const mergedInspections = [
+        ...pendingLocal,
+        ...data.inspections.filter(
+          (di: Inspection) => !pendingLocal.some((pl: Inspection) => pl.id === di.id),
+        ),
+      ]
+      setInspectionsState(mergedInspections)
     } catch (err) {
       console.error('Failed to load cloud data', err)
+      const localInspRaw = localStorage.getItem('nowavet_local_inspections')
+      if (localInspRaw) setInspectionsState(JSON.parse(localInspRaw))
     }
   }
 
@@ -221,25 +230,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentInspections: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
       const remaining: Inspection[] = []
 
-      // Try to send all pending offline inspections
       for (const insp of currentInspections) {
         if (!insp.isSynced) {
           try {
             await api.sendInspectionEmail(insp, contacts)
-            // Discard completely after successful sending (Zero Storage)
+            await api.saveInspection(insp)
           } catch (e) {
             remaining.push(insp)
           }
         }
       }
-      setInspectionsState(remaining)
 
-      const data = await api.getAppData()
-      setItemsState(data.items)
-      setFacilitiesState(data.facilities)
-      setEvaluatorsState(data.evaluators)
-      setContactsState(data.contacts)
-      setUsersState(data.users)
+      if (remaining.length > 0) {
+        localStorage.setItem('nowavet_local_inspections', JSON.stringify(remaining))
+      }
+
+      await loadCloudData()
     } catch (e) {
       console.error('Data Sync Error:', e)
     } finally {
@@ -259,9 +265,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsSyncing(true)
       try {
         await api.sendInspectionEmail(newInspection, contacts)
-        newInspection.isSynced = true
-        toast.success('Relatório gerado e enviado por e-mail com sucesso!')
-        // Do not store in state locally (Zero storage architecture)
+        await api.saveInspection(newInspection)
+
+        const textOnlyAnswers = newInspection.answers.map((a) => {
+          const { photo, ...rest } = a
+          return rest
+        })
+        const textOnlyInsp = { ...newInspection, answers: textOnlyAnswers, isSynced: true }
+
+        toast.success('Relatório gerado e enviado para auditoria.interna@nowavet.com.br!')
+        setInspectionsState((prev) => [textOnlyInsp, ...prev])
       } catch (e) {
         console.error(e)
         toast.error('Erro ao enviar e-mail. Salvo localmente para envio posterior.')
@@ -271,7 +284,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } else {
       setInspectionsState((prev) => [newInspection, ...prev])
-      toast.info('Modo Offline. Inspeção salva localmente.')
+      toast.info(
+        'Modo Offline. Inspeção salva localmente com fotos. Será sincronizada e enviada assim que reconectar.',
+      )
     }
   }
 

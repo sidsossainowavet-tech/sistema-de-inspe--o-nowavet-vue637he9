@@ -23,13 +23,30 @@ export const api = {
 
   getAppData: async () => {
     if (supabase) {
-      const [itemsRes, facilitiesRes, evaluatorsRes, contactsRes, usersRes] = await Promise.all([
-        supabase.from('items').select('*'),
-        supabase.from('facilities').select('*'),
-        supabase.from('evaluators').select('*'),
-        supabase.from('contacts').select('*'),
-        supabase.from('users').select('*'),
-      ])
+      const [itemsRes, facilitiesRes, evaluatorsRes, contactsRes, usersRes, inspectionsRes] =
+        await Promise.all([
+          supabase.from('items').select('*'),
+          supabase.from('facilities').select('*'),
+          supabase.from('evaluators').select('*'),
+          supabase.from('contacts').select('*'),
+          supabase.from('users').select('*'),
+          supabase.from('inspections').select('*').order('date', { ascending: false }),
+        ])
+
+      const inspectionsData = (inspectionsRes.data || []).map((i: any) => ({
+        id: i.id,
+        facilityId: i.facility_id,
+        evaluatorId: i.evaluator_id,
+        structure: i.structure,
+        type: i.type,
+        date: i.date,
+        startTime: i.start_time,
+        endTime: i.end_time,
+        durationSeconds: i.duration_seconds,
+        inspector: i.inspector,
+        answers: i.answers,
+        isSynced: i.is_synced,
+      }))
 
       return {
         items: itemsRes.data?.length ? itemsRes.data : defaultItems,
@@ -39,6 +56,7 @@ export const api = {
         evaluators: evaluatorsRes.data?.length ? evaluatorsRes.data : defaultEvaluators,
         contacts: contactsRes.data?.length ? contactsRes.data : defaultContacts,
         users: usersRes.data?.length ? usersRes.data : [],
+        inspections: inspectionsData,
       }
     }
     return {
@@ -47,6 +65,7 @@ export const api = {
       evaluators: defaultEvaluators,
       contacts: defaultContacts,
       users: [],
+      inspections: [],
     }
   },
 
@@ -76,15 +95,53 @@ export const api = {
     if (supabase) await supabase.from('contacts').upsert(contacts)
   },
 
+  saveInspection: async (inspection: Inspection) => {
+    if (supabase) {
+      // Removendo as fotos para salvar apenas dados textuais (economia de espaço)
+      const textOnlyAnswers = inspection.answers.map((a) => {
+        const { photo, ...rest } = a
+        return rest
+      })
+
+      const dbPayload = {
+        id: inspection.id,
+        facility_id: inspection.facilityId,
+        evaluator_id: inspection.evaluatorId,
+        structure: inspection.structure,
+        type: inspection.type,
+        date: inspection.date,
+        start_time: inspection.startTime,
+        end_time: inspection.endTime,
+        duration_seconds: inspection.durationSeconds,
+        inspector: inspection.inspector,
+        answers: textOnlyAnswers,
+        is_synced: true,
+      }
+
+      const { error } = await supabase.from('inspections').upsert(dbPayload)
+      if (error) throw error
+    }
+  },
+
   sendInspectionEmail: async (inspection: Inspection, contacts: Contact[]) => {
     if (supabase) {
+      // Adicionando o email da auditoria interna sempre
+      const emailContacts = [
+        ...contacts,
+        {
+          id: 'auditoria',
+          sector: 'Auditoria Interna',
+          email: 'auditoria.interna@nowavet.com.br',
+          phone: '',
+        },
+      ]
+
       const { data, error } = await supabase.functions.invoke('send-inspection-report', {
-        body: { inspection, contacts },
+        body: { inspection, contacts: emailContacts },
       })
       if (error) throw error
       return data
     }
-    // Mock success for offline testing
     console.log('Mock: Inspection email sent for', inspection.id)
     return { success: true }
   },

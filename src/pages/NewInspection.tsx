@@ -15,7 +15,7 @@ import { ChecklistItemCard } from '@/components/ChecklistItemCard'
 import { QRScanner } from '@/components/QRScanner'
 import { Answer } from '@/lib/types'
 import { toast } from 'sonner'
-import { Save, QrCode, CheckCircle2, Loader2, MailCheck } from 'lucide-react'
+import { Save, QrCode, Loader2, MailCheck } from 'lucide-react'
 
 export default function NewInspection() {
   const { items, facilities, evaluators, addInspection } = useAppContext()
@@ -61,7 +61,7 @@ export default function NewInspection() {
       }
 
       if (ans?.status && !ans.photo) {
-        toast.error(`Item "${item.name}" requer foto.`)
+        toast.error(`Item "${item.name}" requer foto para evidência em e-mail.`)
         return false
       }
       if (ans?.status === 'NC' && !ans.justification?.trim()) {
@@ -134,8 +134,8 @@ export default function NewInspection() {
         </div>
         <h1 className="text-3xl font-bold text-primary">Relatório Enviado!</h1>
         <p className="text-muted-foreground text-lg max-w-md">
-          A inspeção foi processada e enviada por e-mail para os responsáveis de acordo com a regra
-          de Zero Storage.
+          A inspeção foi enviada para <strong>auditoria.interna@nowavet.com.br</strong> e demais
+          responsáveis. As informações textuais foram atualizadas em nuvem.
         </p>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-6">
@@ -304,7 +304,7 @@ export default function NewInspection() {
           disabled={isLoading}
         >
           {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-          {isLoading ? 'Enviando Relatório...' : 'Finalizar e Enviar E-mail'}
+          {isLoading ? 'Processando...' : 'Finalizar e Enviar para Auditoria'}
         </Button>
       </div>
     </div>
