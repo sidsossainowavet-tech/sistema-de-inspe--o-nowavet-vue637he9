@@ -141,10 +141,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [auth.user, auth.loading, isAuthenticated])
 
   useEffect(() => {
-    localStorage.setItem(
-      'nowavet_local_inspections',
-      JSON.stringify(inspections.filter((i) => !i.isSynced)),
-    )
+    const pending = inspections.filter((i) => !i.isSynced)
+    try {
+      localStorage.setItem('nowavet_local_inspections', JSON.stringify(pending))
+    } catch (error: any) {
+      console.error('Erro ao salvar no localStorage:', error)
+      if (error.name === 'QuotaExceededError' || error.message?.includes('quota')) {
+        toast.error('Armazenamento do dispositivo cheio.')
+        try {
+          const stripped = pending.map((insp) => ({
+            ...insp,
+            answers: insp.answers.map((a) => {
+              const { photo, ...rest } = a
+              return rest
+            }),
+          }))
+          localStorage.setItem('nowavet_local_inspections', JSON.stringify(stripped))
+          toast.warning('Inspeções pendentes foram salvas sem fotos devido à falta de espaço.')
+        } catch (e2) {
+          console.error('Falha no fallback de armazenamento:', e2)
+        }
+      }
+    }
   }, [inspections])
 
   const setItems = (val: React.SetStateAction<ChecklistItem[]>) => {
@@ -286,7 +304,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       if (remaining.length > 0) {
-        localStorage.setItem('nowavet_local_inspections', JSON.stringify(remaining))
+        try {
+          localStorage.setItem('nowavet_local_inspections', JSON.stringify(remaining))
+        } catch (error: any) {
+          console.error('Erro de quota durante sync:', error)
+          try {
+            const stripped = remaining.map((insp) => ({
+              ...insp,
+              answers: insp.answers.map((a) => {
+                const { photo, ...rest } = a
+                return rest
+              }),
+            }))
+            localStorage.setItem('nowavet_local_inspections', JSON.stringify(stripped))
+          } catch (e2) {
+            console.error('Falha no fallback do sync:', e2)
+          }
+        }
       } else if (syncSuccess) {
         localStorage.removeItem('nowavet_local_inspections')
       }
