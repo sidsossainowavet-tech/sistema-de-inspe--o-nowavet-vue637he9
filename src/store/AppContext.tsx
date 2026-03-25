@@ -262,8 +262,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       for (const insp of currentInspections) {
         if (!insp.isSynced) {
           try {
+            // Prioriza o envio de email direto
             const result = await api.sendInspectionEmail(insp, contacts)
-            await api.saveInspection(insp)
+
+            // Tenta salvar na nuvem apenas como backup.
+            // Se falhar o estocamento na nuvem, o processo continua sem bloquear.
+            try {
+              await api.saveInspection(insp)
+            } catch (dbErr: any) {
+              console.warn('Backup no Supabase falhou, mas email foi enviado:', dbErr)
+            }
+
             syncSuccess = true
 
             if (result && result.emailError) {
@@ -328,7 +337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await loadCloudData()
 
       if (syncSuccess && remaining.length === 0) {
-        toast.success('Todas as inspeções pendentes foram sincronizadas com a nuvem.')
+        toast.success('Todas as inspeções pendentes foram sincronizadas.')
       }
     } catch (e) {
       console.error('Data Sync Error:', e)
@@ -348,12 +357,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (navigator.onLine) {
       setIsSyncing(true)
       try {
+        // Envio direto por e-mail é o prioritário
         const result = await api.sendInspectionEmail(newInspection, contacts)
-        await api.saveInspection(newInspection)
-        SystemLogger.logAudit(profile.email, 'Nova inspeção registrada', {
-          inspectionId: newInspection.id,
-          structure: newInspection.structure,
-        })
+
+        // Backup na base de dados sem interrupções se falhar (Ignora estocagem obrigatória)
+        try {
+          await api.saveInspection(newInspection)
+        } catch (dbErr: any) {
+          console.warn(
+            'Falha ao estocar inspeção na nuvem. Ignorando para focar no envio direto de e-mail.',
+            dbErr,
+          )
+          SystemLogger.logError(profile.email, 'Backup em Nuvem', dbErr.message, {
+            inspectionId: newInspection.id,
+          })
+        }
+
+        SystemLogger.logAudit(
+          profile.email,
+          'Nova inspeção registrada e enviada direto por e-mail',
+          {
+            inspectionId: newInspection.id,
+            structure: newInspection.structure,
+          },
+        )
 
         const textOnlyAnswers = newInspection.answers.map((a) => {
           const { photo, ...rest } = a
@@ -362,14 +389,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const textOnlyInsp = { ...newInspection, answers: textOnlyAnswers, isSynced: true }
 
         if (result.emailError) {
-          toast.warning(`Relatório salvo, mas ocorreu erro no E-mail: ${result.emailError}`, {
+          toast.warning(`Relatório processado, mas ocorreu erro no E-mail: ${result.emailError}`, {
             duration: 6000,
           })
           SystemLogger.logError(profile.email, 'Envio de Relatório (E-mail)', result.emailError, {
             inspectionId: newInspection.id,
           })
         } else {
-          toast.success('Relatório gerado e enviado por e-mail com sucesso!')
+          toast.success(
+            'Relatório gerado e encaminhado direto para a Auditoria Interna com sucesso!',
+          )
         }
 
         if (result.whatsappError && !result.whatsappError.includes('Simulação')) {
@@ -380,7 +409,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             result.whatsappError,
             { inspectionId: newInspection.id },
           )
-        } else {
+        } else if (!result.whatsappError) {
           toast.success('Relatório também encaminhado para o WhatsApp cadastrado (com fotos)!')
         }
 
@@ -407,7 +436,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         structure: newInspection.structure,
       })
       toast.info(
-        'Modo Offline. Inspeção salva localmente com fotos. Será sincronizada assim que reconectar.',
+        'Modo Offline. Inspeção salva localmente com fotos. Será encaminhada por e-mail assim que reconectar.',
       )
     }
   }
