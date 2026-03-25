@@ -61,7 +61,7 @@ export default function NewInspection() {
       }
 
       if (ans?.status && !ans.photo) {
-        toast.error(`Item "${item.name}" requer foto para evidência em e-mail.`)
+        toast.error(`Item "${item.name}" requer foto para evidência.`)
         return false
       }
       if (ans?.status === 'NC' && !ans.justification?.trim()) {
@@ -143,9 +143,9 @@ export default function NewInspection() {
         </div>
         <h1 className="text-3xl font-bold text-primary">Relatório Processado!</h1>
         <p className="text-muted-foreground text-lg max-w-md">
-          A tentativa de envio para <strong>auditoria.interna@nowavet.com.br</strong> foi realizada.
-          Caso tenha ocorrido alguma falha de conexão, ele estará pendente para sincronização no
-          Início.
+          O envio foi processado e encaminhado para{' '}
+          <strong>auditoria.interna@nowavet.com.br</strong> e para o <strong>WhatsApp</strong>{' '}
+          cadastrado, contendo todas as fotos de evidência.
         </p>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-6">

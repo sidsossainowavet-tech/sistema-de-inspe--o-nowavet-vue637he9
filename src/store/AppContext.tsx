@@ -237,9 +237,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       for (const insp of currentInspections) {
         if (!insp.isSynced) {
           try {
-            await api.sendInspectionEmail(insp, contacts)
+            const result = await api.sendInspectionEmail(insp, contacts)
             await api.saveInspection(insp)
             syncSuccess = true
+
+            if (result && result.emailError) {
+              toast.warning(
+                `Sincronização (${insp.structure}): Erro no e-mail - ${result.emailError}`,
+              )
+            }
+            if (result && result.whatsappError && !result.whatsappError.includes('Simulação')) {
+              toast.warning(
+                `Sincronização (${insp.structure}): Erro no WhatsApp - ${result.whatsappError}`,
+              )
+            }
           } catch (e: any) {
             console.error('Falha na sincronização da inspeção:', insp.id, e)
             toast.error(`Aviso (${insp.structure}): ${e.message}`)
@@ -257,7 +268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await loadCloudData()
 
       if (syncSuccess && remaining.length === 0) {
-        toast.success('Todas as inspeções pendentes foram sincronizadas com sucesso!')
+        toast.success('Todas as inspeções pendentes foram sincronizadas com a nuvem.')
       }
     } catch (e) {
       console.error('Data Sync Error:', e)
@@ -277,7 +288,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (navigator.onLine) {
       setIsSyncing(true)
       try {
-        await api.sendInspectionEmail(newInspection, contacts)
+        const result = await api.sendInspectionEmail(newInspection, contacts)
         await api.saveInspection(newInspection)
 
         const textOnlyAnswers = newInspection.answers.map((a) => {
@@ -286,12 +297,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })
         const textOnlyInsp = { ...newInspection, answers: textOnlyAnswers, isSynced: true }
 
-        toast.success('Relatório gerado e enviado para auditoria.interna@nowavet.com.br!')
+        if (result.emailError) {
+          toast.warning(`Relatório salvo, mas ocorreu erro no E-mail: ${result.emailError}`, {
+            duration: 6000,
+          })
+        } else {
+          toast.success('Relatório gerado e enviado por e-mail com sucesso!')
+        }
+
+        if (result.whatsappError && !result.whatsappError.includes('Simulação')) {
+          toast.warning(`Erro no envio via WhatsApp: ${result.whatsappError}`, { duration: 6000 })
+        } else {
+          toast.success('Relatório também encaminhado para o WhatsApp cadastrado (com fotos)!')
+        }
+
         setInspectionsState((prev) => [textOnlyInsp, ...prev])
       } catch (e: any) {
-        console.error('Erro no envio de email:', e)
+        console.error('Erro geral no envio:', e)
         toast.error(
-          `Falha no envio de e-mail: ${e.message}. A inspeção foi salva localmente para reenvio.`,
+          `Falha de comunicação: ${e.message}. A inspeção foi salva localmente para reenvio.`,
           {
             duration: 8000,
           },
@@ -303,7 +327,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       setInspectionsState((prev) => [newInspection, ...prev])
       toast.info(
-        'Modo Offline. Inspeção salva localmente com fotos. Será sincronizada e enviada assim que reconectar.',
+        'Modo Offline. Inspeção salva localmente com fotos. Será sincronizada assim que reconectar.',
       )
     }
   }

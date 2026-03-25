@@ -171,7 +171,7 @@ export const api = {
           id: 'auditoria',
           sector: 'Auditoria Interna',
           email: 'auditoria.interna@nowavet.com.br',
-          phone: '',
+          phone: '5511999999999', // Telefone default caso necessite integração
         },
       ]
 
@@ -183,12 +183,12 @@ export const api = {
         throw new Error(`Erro de comunicação com o servidor: ${error.message}`)
       }
       if (data && data.success === false) {
-        throw new Error(data.error || 'Falha desconhecida no provedor de e-mail.')
+        throw new Error(data.error || 'Falha desconhecida no provedor de e-mail/whatsapp.')
       }
 
       return data
     }
-    console.log('Mock: Inspection email sent for', inspection.id)
+    console.log('Mock: Inspection email/whatsapp sent for', inspection.id)
     return { success: true }
   },
 
