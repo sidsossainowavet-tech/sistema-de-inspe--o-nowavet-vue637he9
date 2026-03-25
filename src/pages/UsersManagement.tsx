@@ -92,7 +92,7 @@ export default function UsersManagement() {
         await setUsers([
           ...users,
           {
-            id: Math.random().toString(36).substring(2),
+            id: crypto.randomUUID(),
             name,
             email,
             password,
@@ -100,7 +100,9 @@ export default function UsersManagement() {
             active: true,
           },
         ])
-        toast.success('Usuário criado com sucesso.')
+        toast.success(
+          'Usuário criado com sucesso. (Nota: Para login na nuvem, o usuário também precisa de registro Auth)',
+        )
       }
       setOpen(false)
     } catch (e) {
@@ -132,7 +134,7 @@ export default function UsersManagement() {
           <Cloud
             className={isSyncing ? 'w-4 h-4 text-accent animate-pulse' : 'w-4 h-4 text-primary'}
           />
-          Conectado e sincronizado em tempo real via Skip Cloud
+          Conectado e sincronizado com base Supabase centralizada
         </p>
       </div>
 

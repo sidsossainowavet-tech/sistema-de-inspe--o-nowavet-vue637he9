@@ -15,7 +15,7 @@ import { ChecklistItemCard } from '@/components/ChecklistItemCard'
 import { QRScanner } from '@/components/QRScanner'
 import { Answer } from '@/lib/types'
 import { toast } from 'sonner'
-import { Save, QrCode, CheckCircle2 } from 'lucide-react'
+import { Save, QrCode, CheckCircle2, Loader2, MailCheck } from 'lucide-react'
 
 export default function NewInspection() {
   const { items, facilities, evaluators, addInspection } = useAppContext()
@@ -30,6 +30,7 @@ export default function NewInspection() {
   const [scannerOpen, setScannerOpen] = useState(false)
   const [startTime, setStartTime] = useState<string | null>(null)
   const [successData, setSuccessData] = useState<{ duration: number; ncs: number } | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     if (facilityId && !startTime) {
@@ -71,7 +72,7 @@ export default function NewInspection() {
     return true
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return
 
     const facility = facilities.find((f) => f.id === facilityId)
@@ -85,7 +86,8 @@ export default function NewInspection() {
     const finalAnswers = Object.values(answers).filter((a) => a.status)
     const ncs = finalAnswers.filter((a) => a.status === 'NC').length
 
-    addInspection({
+    setIsLoading(true)
+    await addInspection({
       facilityId: facility?.id,
       evaluatorId: evaluator?.id,
       structure: facility?.name || 'Desconhecido',
@@ -96,6 +98,7 @@ export default function NewInspection() {
       endTime,
       durationSeconds,
     })
+    setIsLoading(false)
 
     setSuccessData({ duration: durationSeconds, ncs })
   }
@@ -127,10 +130,13 @@ export default function NewInspection() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center animate-fade-in-up">
         <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-2 shadow-sm">
-          <CheckCircle2 className="w-12 h-12" />
+          <MailCheck className="w-12 h-12" />
         </div>
-        <h1 className="text-3xl font-bold text-primary">Inspeção Finalizada!</h1>
-        <p className="text-muted-foreground text-lg">Os dados foram salvos com sucesso.</p>
+        <h1 className="text-3xl font-bold text-primary">Relatório Enviado!</h1>
+        <p className="text-muted-foreground text-lg max-w-md">
+          A inspeção foi processada e enviada por e-mail para os responsáveis de acordo com a regra
+          de Zero Storage.
+        </p>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-6">
           <Card className="bg-muted/50 border-none shadow-none">
@@ -202,7 +208,7 @@ export default function NewInspection() {
             <Label htmlFor="facility">
               Instalação / Estrutura <span className="text-destructive">*</span>
             </Label>
-            <Select value={facilityId} onValueChange={setFacilityId}>
+            <Select value={facilityId} onValueChange={setFacilityId} disabled={isLoading}>
               <SelectTrigger
                 id="facility"
                 className={
@@ -231,7 +237,7 @@ export default function NewInspection() {
             <Label htmlFor="evaluator">
               Avaliador Responsável <span className="text-destructive">*</span>
             </Label>
-            <Select value={evaluatorId} onValueChange={setEvaluatorId}>
+            <Select value={evaluatorId} onValueChange={setEvaluatorId} disabled={isLoading}>
               <SelectTrigger id="evaluator">
                 <SelectValue placeholder="Selecione o avaliador..." />
               </SelectTrigger>
@@ -255,7 +261,7 @@ export default function NewInspection() {
             <Label htmlFor="type">
               Tipo de Inspeção <span className="text-destructive">*</span>
             </Label>
-            <Select value={type} onValueChange={(v: any) => setType(v)}>
+            <Select value={type} onValueChange={(v: any) => setType(v)} disabled={isLoading}>
               <SelectTrigger id="type">
                 <SelectValue placeholder="Selecione o tipo" />
               </SelectTrigger>
@@ -295,8 +301,10 @@ export default function NewInspection() {
           size="lg"
           className="w-full shadow-elevation text-lg py-6 gap-2"
           onClick={handleSubmit}
+          disabled={isLoading}
         >
-          <Save className="h-5 w-5" /> Salvar Inspeção
+          {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
+          {isLoading ? 'Enviando Relatório...' : 'Finalizar e Enviar E-mail'}
         </Button>
       </div>
     </div>

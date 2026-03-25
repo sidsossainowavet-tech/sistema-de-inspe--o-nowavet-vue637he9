@@ -10,6 +10,8 @@ import {
 } from '@/lib/types'
 import { api } from '@/lib/api'
 import { defaultProfile } from '@/lib/defaults'
+import { useAuth } from '@/hooks/use-auth'
+import { toast } from 'sonner'
 
 interface AppState {
   items: ChecklistItem[]
@@ -30,7 +32,7 @@ interface AppState {
   isCheckingSession: boolean
   login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>
   logout: () => Promise<void>
-  addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => void
+  addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => Promise<void>
   syncData: () => Promise<void>
   updateProfile: (profile: UserProfile) => Promise<void>
   toggleItemStatus: (id: string) => void
@@ -40,6 +42,8 @@ interface AppState {
 const AppContext = createContext<AppState | null>(null)
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const auth = useAuth()
+
   const [items, setItemsState] = useState<ChecklistItem[]>([])
   const [facilities, setFacilitiesState] = useState<Facility[]>([])
   const [evaluators, setEvaluatorsState] = useState<Evaluator[]>([])
@@ -65,10 +69,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const localInspRaw = localStorage.getItem('nowavet_local_inspections')
       const localInsp: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
       const pendingLocal = localInsp.filter((i) => !i.isSynced)
-
-      const pendingIds = new Set(pendingLocal.map((i) => i.id))
-      const merged = [...pendingLocal, ...data.inspections.filter((i) => !pendingIds.has(i.id))]
-      setInspectionsState(merged)
+      setInspectionsState(pendingLocal)
     } catch (err) {
       console.error('Failed to load cloud data', err)
     }
@@ -88,7 +89,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [])
 
-  // Real-time synchronization subscription
   useEffect(() => {
     const unsubscribe = api.onSync(() => {
       if (isAuthenticated) {
@@ -99,32 +99,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isAuthenticated])
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const user = await api.verifySession()
-        setProfile({
-          name: user.name,
-          email: user.email,
-          phone: '',
-          avatar: user.avatar || '',
-          role: user.role,
-        })
-        setIsAuthenticated(true)
-        await loadCloudData()
-      } catch {
-        setIsAuthenticated(false)
+    if (auth.loading) return
+
+    if (auth.user) {
+      if (!isAuthenticated) {
+        api
+          .verifyUser(auth.user.email!)
+          .then((u) => {
+            setProfile({
+              name: u.name,
+              email: u.email,
+              phone: u.phone || '',
+              avatar: u.avatar || '',
+              role: u.role,
+            })
+            setIsAuthenticated(true)
+            loadCloudData().finally(() => setIsCheckingSession(false))
+          })
+          .catch(() => {
+            auth.signOut()
+            setIsAuthenticated(false)
+            setIsCheckingSession(false)
+          })
+      } else {
+        setIsCheckingSession(false)
       }
+    } else {
+      setIsAuthenticated(false)
       setIsCheckingSession(false)
     }
-    checkAuth()
-  }, [])
+  }, [auth.user, auth.loading, isAuthenticated])
 
   useEffect(() => {
-    // Only cache inspections locally to persist them until they are synced to cloud
     localStorage.setItem('nowavet_local_inspections', JSON.stringify(inspections))
   }, [inspections])
 
-  // Abstracted Setters that update React state immediately and Cloud DB asynchronously
   const setItems = (val: React.SetStateAction<ChecklistItem[]>) => {
     return new Promise<void>((resolve) => {
       setItemsState((prev) => {
@@ -173,32 +182,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const login = async (email: string, pass: string) => {
+    const { error } = await auth.signIn(email, pass)
+    if (error) return { success: false, message: 'Credenciais inválidas.' }
+
     try {
-      const { user } = await api.login(email, pass)
+      const u = await api.verifyUser(email)
       setProfile({
-        name: user.name,
-        email: user.email,
-        phone: '',
-        avatar: user.avatar || '',
-        role: user.role,
+        name: u.name,
+        email: u.email,
+        phone: u.phone || '',
+        avatar: u.avatar || '',
+        role: u.role,
       })
       setIsAuthenticated(true)
       await loadCloudData()
       return { success: true }
-    } catch (err: any) {
-      return { success: false, message: err.message || 'Credenciais inválidas.' }
+    } catch (err) {
+      await auth.signOut()
+      return { success: false, message: 'Usuário não cadastrado na base de dados.' }
     }
   }
 
   const logout = async () => {
-    await api.logout()
+    await auth.signOut()
     setIsAuthenticated(false)
     setItemsState([])
     setFacilitiesState([])
     setEvaluatorsState([])
     setContactsState([])
     setUsersState([])
-    // Keep local offline inspections
   }
 
   const syncData = async () => {
@@ -207,12 +219,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const localInspRaw = localStorage.getItem('nowavet_local_inspections')
       const currentInspections: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
-      if (currentInspections.length > 0) {
-        const cloudInspections = await api.syncInspections(currentInspections)
-        setInspectionsState(cloudInspections)
-      }
+      const remaining: Inspection[] = []
 
-      // Keep other entities silently up to date with cloud
+      // Try to send all pending offline inspections
+      for (const insp of currentInspections) {
+        if (!insp.isSynced) {
+          try {
+            await api.sendInspectionEmail(insp, contacts)
+            // Discard completely after successful sending (Zero Storage)
+          } catch (e) {
+            remaining.push(insp)
+          }
+        }
+      }
+      setInspectionsState(remaining)
+
       const data = await api.getAppData()
       setItemsState(data.items)
       setFacilitiesState(data.facilities)
@@ -226,20 +247,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }
 
-  const addInspection = (data: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => {
+  const addInspection = async (data: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => {
     const newInspection: Inspection = {
       ...data,
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       date: new Date().toISOString(),
       isSynced: false,
     }
-    setInspectionsState((prev) => {
-      const next = [newInspection, ...prev]
-      if (navigator.onLine) {
-        setTimeout(syncData, 500)
+
+    if (navigator.onLine) {
+      setIsSyncing(true)
+      try {
+        await api.sendInspectionEmail(newInspection, contacts)
+        newInspection.isSynced = true
+        toast.success('Relatório gerado e enviado por e-mail com sucesso!')
+        // Do not store in state locally (Zero storage architecture)
+      } catch (e) {
+        console.error(e)
+        toast.error('Erro ao enviar e-mail. Salvo localmente para envio posterior.')
+        setInspectionsState((prev) => [newInspection, ...prev])
+      } finally {
+        setIsSyncing(false)
       }
-      return next
-    })
+    } else {
+      setInspectionsState((prev) => [newInspection, ...prev])
+      toast.info('Modo Offline. Inspeção salva localmente.')
+    }
   }
 
   const toggleItemStatus = (id: string) => {
@@ -266,10 +299,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearLocalData = () => {
     if (
       confirm(
-        'Tem certeza? Isso apagará todas as inspeções locais não sincronizadas e forçará recarregamento do servidor.',
+        'Tem certeza? Isso apagará todas as inspeções locais não sincronizadas permanentemente.',
       )
     ) {
-      setInspectionsState((prev) => prev.filter((i) => i.isSynced))
+      setInspectionsState([])
       localStorage.removeItem('nowavet_local_inspections')
       if (navigator.onLine) {
         syncData()
