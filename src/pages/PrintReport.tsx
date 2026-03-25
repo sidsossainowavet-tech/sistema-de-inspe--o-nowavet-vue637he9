@@ -27,26 +27,28 @@ export default function PrintReport() {
 
   const ncs = inspection.answers.filter((a) => a.status === 'NC')
   const waMessage = encodeURIComponent(
-    `*Relatório de Vistoria - Nowavet Agro*\nEstrutura: ${inspection.structure}\nTipo: ${inspection.type}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNCs: ${ncs.length}\n*Baixe o arquivo (PDF/Word) para ver as fotos e detalhes.*`,
+    `*Relatório de Vistoria - Nowavet Agro*\nEstrutura: ${inspection.structure}\nTipo: ${inspection.type}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNCs: ${ncs.length}\n*Baixe o arquivo para ver as fotos e detalhes.*`,
   )
   const waContact = contacts.find((c) => c.sector === 'Qualidade')?.phone || ''
 
-  const handleShare = async () => {
+  const handleShareSummary = async () => {
     const shareText = `Vistoria: ${inspection.structure}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNCs: ${ncs.length}\nGerado pelo app Nowavet.`
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Relatório - ${inspection.structure}`,
+          title: `Resumo - ${inspection.structure}`,
           text: shareText,
         })
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Compartilhamento nativo bloqueado ou cancelado', err)
-        try {
-          await navigator.clipboard.writeText(shareText)
-          toast.success('Resumo copiado para a área de transferência! Cole onde desejar.')
-        } catch (clipErr) {
-          toast.warning('O compartilhamento foi bloqueado pelo navegador.')
+        if (err.name !== 'AbortError') {
+          try {
+            await navigator.clipboard.writeText(shareText)
+            toast.success('Resumo copiado para a área de transferência! Cole onde desejar.')
+          } catch (clipErr) {
+            toast.warning('O compartilhamento foi bloqueado pelo navegador.')
+          }
         }
       }
     } else {
@@ -54,7 +56,7 @@ export default function PrintReport() {
     }
   }
 
-  const exportWord = () => {
+  const handleShareFile = async () => {
     const wordHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Relatório</title><style>body{font-family:'Segoe UI',Arial,sans-serif;color:#333;line-height:1.5}h1{color:#1e3a8a;font-size:24px;margin-bottom:5px}h2{color:#b91c1c;font-size:18px;margin-top:20px}h3{font-size:16px;margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:5px}.header{border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:20px}.info-table{width:100%;margin-bottom:20px;border-collapse:collapse}.info-table td{padding:8px;vertical-align:top}.item{border:1px solid #e5e7eb;padding:15px;margin-bottom:15px;background:#ffffff;border-radius:8px}.item-nc{border:1px solid #fca5a5;background:#fef2f2}.badge-c{color:#166534;background:#dcfce7;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:bold}.badge-nc{color:#991b1b;background:#fee2e2;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:bold}.badge-na{color:#374151;background:#f3f4f6;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:bold}.justification{margin-top:8px;font-size:14px}.photo-container{margin-top:15px;padding-top:10px;border-top:1px solid #e5e7eb}img{max-width:400px;height:auto;display:block;border:1px solid #ddd;padding:4px;background:#fff}</style></head><body><div class="header"><h1>NOWAVET AGRO</h1><p style="text-transform:uppercase;font-size:12px;font-weight:bold;color:#64748b">Relatório de Vistoria Estrutural</p></div><table class="info-table"><tr><td><span style="color:#64748b;font-size:12px">Estrutura Inspecionada</span><br/><strong>${inspection.structure}</strong></td><td><span style="color:#64748b;font-size:12px">Tipo de Vistoria</span><br/><strong>${inspection.type}</strong></td></tr><tr><td><span style="color:#64748b;font-size:12px">Inspetor Responsável</span><br/><strong>${inspection.inspector}</strong></td><td><span style="color:#64748b;font-size:12px">Data da Inspeção</span><br/><strong>${new Date(inspection.date).toLocaleString('pt-BR')}</strong></td></tr></table>${ncs.length > 0 ? `<h2>⚠️ Resumo de Não Conformidades (${ncs.length})</h2><p style="font-size:14px">As seguintes áreas requerem atenção imediata das equipes de Projetos e Qualidade.</p>` : ''}<h3>Detalhamento do Checklist</h3>${inspection.answers
       .map((answer, index) => {
         const itemDef = items.find((i) => i.id === answer.itemId)
@@ -74,16 +76,40 @@ export default function PrintReport() {
       .join(
         '',
       )}<br/><br/><br/><div style="text-align:center;color:#64748b;font-size:12px"><p>Documento gerado para exportação manual pelo Sistema de Inspeções Nowavet Agro.</p><div style="margin-top:40px;width:250px;margin-left:auto;margin-right:auto;border-top:1px solid #333;padding-top:10px"><strong style="color:#333">${inspection.inspector}</strong><br/>Assinatura do Responsável</div></div></body></html>`
+
     const blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `Relatorio_${inspection.structure.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.doc`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    toast.success('Relatório em Word baixado com sucesso! Salve para compartilhar.')
+    const filename = `Relatorio_${inspection.structure.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.doc`
+
+    const downloadFallback = () => {
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success('Arquivo baixado! Envie manualmente pelo WhatsApp ou E-mail.')
+    }
+
+    try {
+      const file = new File([blob], filename, { type: 'application/msword' })
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Relatório - ${inspection.structure}`,
+          text: `Segue o relatório de vistoria da estrutura: ${inspection.structure}`,
+        })
+        toast.success('Relatório compartilhado com sucesso!')
+      } else {
+        downloadFallback()
+      }
+    } catch (err: any) {
+      console.warn('Compartilhamento de arquivo bloqueado ou cancelado', err)
+      if (err.name !== 'AbortError') {
+        downloadFallback()
+      }
+    }
   }
 
   return (
@@ -97,13 +123,16 @@ export default function PrintReport() {
 
         <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
           <span className="text-xs text-slate-500 text-center md:text-right hidden md:block">
-            Gere o PDF ou Word e utilize
-            <br />o menu do sistema para compartilhar.
+            Exporte e envie o relatório para a equipe.
           </span>
           <div className="flex flex-wrap gap-2 w-full md:w-auto">
             {navigator.share ? (
-              <Button variant="secondary" onClick={handleShare} className="flex-1 md:flex-none">
-                <Share2 className="h-4 w-4 mr-2" /> Resumo
+              <Button
+                variant="secondary"
+                onClick={handleShareSummary}
+                className="flex-1 md:flex-none"
+              >
+                <Share2 className="h-4 w-4 mr-2" /> WhatsApp (Resumo)
               </Button>
             ) : (
               <Button variant="secondary" asChild className="flex-1 md:flex-none">
@@ -112,22 +141,22 @@ export default function PrintReport() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <Share2 className="h-4 w-4 mr-2" /> WhatsApp
+                  <Share2 className="h-4 w-4 mr-2" /> WhatsApp (Resumo)
                 </a>
               </Button>
             )}
             <Button
               variant="outline"
-              onClick={exportWord}
+              onClick={handleShareFile}
               className="flex-1 md:flex-none border-primary text-primary hover:bg-primary/5"
             >
-              <FileText className="h-4 w-4 mr-2" /> Word
+              <FileText className="h-4 w-4 mr-2" /> WhatsApp (Relatório Completo)
             </Button>
             <Button
               onClick={printDoc}
               className="flex-1 md:flex-none shadow-elevation bg-primary hover:bg-primary/90 text-white"
             >
-              <Printer className="h-4 w-4 mr-2" /> PDF
+              <Printer className="h-4 w-4 mr-2" /> Imprimir / PDF
             </Button>
           </div>
         </div>
