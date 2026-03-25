@@ -147,8 +147,8 @@ export default function NewInspection() {
         </div>
         <h1 className="text-3xl font-bold text-primary">Inspeção Finalizada!</h1>
         <p className="text-muted-foreground text-lg max-w-md">
-          A vistoria foi registrada. Gere o arquivo PDF com as fotos e exporte manualmente para o
-          WhatsApp ou E-mail da equipe.
+          A vistoria foi registrada. Gere o arquivo PDF ou Word com as fotos e exporte manualmente
+          para o WhatsApp ou E-mail da equipe.
         </p>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-6">
@@ -174,8 +174,8 @@ export default function NewInspection() {
             className="w-full shadow-elevation text-lg py-6"
             size="lg"
           >
-            <Printer className="w-5 h-5 mr-2" />
-            Gerar PDF e Compartilhar
+            <FileText className="w-5 h-5 mr-2" />
+            Visualizar e Exportar (PDF / Word)
           </Button>
           <Button variant="outline" onClick={() => navigate('/')} className="w-full" size="lg">
             Voltar ao Início
