@@ -20,14 +20,14 @@ Deno.serve(async (req: Request) => {
     // Data limite: 15 dias atrás
     const fifteenDaysAgo = new Date()
     fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15)
-
+    
     let body: any = {}
-    try {
+    try { 
       if (req.method === 'POST') {
-        body = await req.json()
+        body = await req.json() 
       }
-    } catch (e) {}
-
+    } catch(e) {}
+    
     const archiveAll = body.all === true
 
     let query = supabase.from('inspections').select('*')
@@ -41,16 +41,9 @@ Deno.serve(async (req: Request) => {
     if (fetchError) throw fetchError
 
     if (!inspections || inspections.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Nenhuma inspeção para arquivar.',
-          archivedCount: 0,
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
-      )
+      return new Response(JSON.stringify({ success: true, message: 'Nenhuma inspeção para arquivar.', archivedCount: 0 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     const idsToDelete = inspections.map((i: any) => i.id)
@@ -65,27 +58,27 @@ Deno.serve(async (req: Request) => {
       .from('archived_inspections')
       .upload(fileName, jsonContent, {
         contentType: 'application/json',
-        upsert: true,
+        upsert: true
       })
 
     if (uploadError) throw uploadError
 
     // Deletar os registros do banco
-    const { error: deleteError } = await supabase.from('inspections').delete().in('id', idsToDelete)
+    const { error: deleteError } = await supabase.from('inspections')
+      .delete()
+      .in('id', idsToDelete)
 
     if (deleteError) throw deleteError
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        archivedCount: inspections.length,
-        fileName,
-        message: `${inspections.length} inspeções foram arquivadas com sucesso.`,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    )
+    return new Response(JSON.stringify({ 
+      success: true, 
+      archivedCount: inspections.length, 
+      fileName,
+      message: `${inspections.length} inspeções foram arquivadas com sucesso.`
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
   } catch (err: any) {
     return new Response(JSON.stringify({ success: false, error: err.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
