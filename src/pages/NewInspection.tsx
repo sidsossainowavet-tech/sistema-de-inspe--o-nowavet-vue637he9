@@ -15,7 +15,7 @@ import { ChecklistItemCard } from '@/components/ChecklistItemCard'
 import { QRScanner } from '@/components/QRScanner'
 import { Answer } from '@/lib/types'
 import { toast } from 'sonner'
-import { Save, QrCode, Loader2, MailCheck } from 'lucide-react'
+import { Save, QrCode, Loader2, FileText, Printer } from 'lucide-react'
 
 export default function NewInspection() {
   const { items, facilities, evaluators, addInspection } = useAppContext()
@@ -29,7 +29,11 @@ export default function NewInspection() {
   const [answers, setAnswers] = useState<Record<string, Answer>>({})
   const [scannerOpen, setScannerOpen] = useState(false)
   const [startTime, setStartTime] = useState<string | null>(null)
-  const [successData, setSuccessData] = useState<{ duration: number; ncs: number } | null>(null)
+  const [successData, setSuccessData] = useState<{
+    id: string
+    duration: number
+    ncs: number
+  } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -96,7 +100,7 @@ export default function NewInspection() {
     const ncs = finalAnswers.filter((a) => a.status === 'NC').length
 
     setIsLoading(true)
-    await addInspection({
+    const createdId = await addInspection({
       facilityId: facility?.id,
       evaluatorId: evaluator?.id,
       structure: facility?.name || 'Desconhecido',
@@ -109,7 +113,7 @@ export default function NewInspection() {
     })
     setIsLoading(false)
 
-    setSuccessData({ duration: durationSeconds, ncs })
+    setSuccessData({ id: createdId, duration: durationSeconds, ncs })
   }
 
   const handleScan = (data: string) => {
@@ -138,14 +142,13 @@ export default function NewInspection() {
   if (successData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center animate-fade-in-up">
-        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-2 shadow-sm">
-          <MailCheck className="w-12 h-12" />
+        <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-2 shadow-sm">
+          <FileText className="w-12 h-12" />
         </div>
-        <h1 className="text-3xl font-bold text-primary">Relatório Processado!</h1>
+        <h1 className="text-3xl font-bold text-primary">Inspeção Finalizada!</h1>
         <p className="text-muted-foreground text-lg max-w-md">
-          O envio foi processado e encaminhado para{' '}
-          <strong>auditoria.interna@nowavet.com.br</strong> e para o <strong>WhatsApp</strong>{' '}
-          cadastrado, contendo todas as fotos de evidência.
+          A vistoria foi registrada. Gere o arquivo PDF com as fotos e exporte manualmente para o
+          WhatsApp ou E-mail da equipe.
         </p>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-6">
@@ -165,13 +168,19 @@ export default function NewInspection() {
           </Card>
         </div>
 
-        <Button
-          onClick={() => navigate('/')}
-          className="mt-8 w-full max-w-sm shadow-elevation"
-          size="lg"
-        >
-          Voltar ao Início
-        </Button>
+        <div className="flex flex-col gap-3 w-full max-w-sm mt-8">
+          <Button
+            onClick={() => navigate(`/inspecao/${successData.id}/relatorio`)}
+            className="w-full shadow-elevation text-lg py-6"
+            size="lg"
+          >
+            <Printer className="w-5 h-5 mr-2" />
+            Gerar PDF e Compartilhar
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/')} className="w-full" size="lg">
+            Voltar ao Início
+          </Button>
+        </div>
       </div>
     )
   }
@@ -314,7 +323,7 @@ export default function NewInspection() {
           disabled={isLoading}
         >
           {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-          {isLoading ? 'Processando...' : 'Finalizar e Enviar para Auditoria'}
+          {isLoading ? 'Processando...' : 'Finalizar Inspeção'}
         </Button>
       </div>
     </div>

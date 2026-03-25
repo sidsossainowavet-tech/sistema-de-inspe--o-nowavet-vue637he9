@@ -1,7 +1,8 @@
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { useAppContext } from '@/store/AppContext'
 import { Button } from '@/components/ui/button'
-import { Printer, ArrowLeft, MessageSquare, Loader2 } from 'lucide-react'
+import { Printer, ArrowLeft, Loader2, Share2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function PrintReport() {
   const { id } = useParams()
@@ -21,38 +22,75 @@ export default function PrintReport() {
 
   const inspection = inspections.find((i) => i.id === id)
 
-  if (!inspection) return <div className="p-8 text-center">Inspeção não encontrada.</div>
+  if (!inspection)
+    return (
+      <div className="p-8 text-center">Inspeção não encontrada ou expirada no dispositivo.</div>
+    )
 
   const printDoc = () => window.print()
 
   const ncs = inspection.answers.filter((a) => a.status === 'NC')
 
   const waMessage = encodeURIComponent(
-    `*Relatório de Vistoria - Nowavet Agro*\nEstrutura: ${inspection.structure}\nTipo: ${inspection.type}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNão Conformidades: ${ncs.length}\n*Acesse o sistema para ver o PDF completo.*`,
+    `*Relatório de Vistoria - Nowavet Agro*\nEstrutura: ${inspection.structure}\nTipo: ${inspection.type}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNão Conformidades: ${ncs.length}\n*Gerado localmente.*`,
   )
   const waContact = contacts.find((c) => c.sector === 'Qualidade')?.phone || ''
 
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Relatório - ${inspection.structure}`,
+          text: `Vistoria: ${inspection.structure}\nData: ${new Date(inspection.date).toLocaleDateString('pt-BR')}\nNCs: ${ncs.length}\nGerado pelo app Nowavet Agro.`,
+        })
+      } catch (err) {
+        console.error('Erro ao compartilhar', err)
+      }
+    } else {
+      toast.warning(
+        'Compartilhamento nativo não suportado neste dispositivo. Utilize o botão Exportar PDF.',
+      )
+    }
+  }
+
   return (
-    <div className="bg-white min-h-screen">
-      <div className="no-print sticky top-0 bg-muted/90 p-4 border-b flex justify-between items-center z-50 backdrop-blur">
-        <Button variant="ghost" asChild>
+    <div className="bg-white min-h-screen pb-16">
+      <div className="no-print sticky top-0 bg-white/95 p-4 border-b flex flex-col md:flex-row gap-4 justify-between items-center z-50 backdrop-blur shadow-sm">
+        <Button variant="ghost" asChild className="self-start md:self-auto">
           <Link to="/">
             <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
           </Link>
         </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <a
-              href={`https://wa.me/${waContact}?text=${waMessage}`}
-              target="_blank"
-              rel="noreferrer"
+
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+          <span className="text-xs text-slate-500 text-center md:text-right hidden md:block">
+            Para enviar com fotos, gere o PDF e utilize
+            <br />
+            "Salvar" ou "Compartilhar" no menu de impressão.
+          </span>
+          <div className="flex gap-2 w-full md:w-auto">
+            {navigator.share ? (
+              <Button variant="secondary" onClick={handleShare} className="flex-1 md:flex-none">
+                <Share2 className="h-4 w-4 mr-2" /> Resumo
+              </Button>
+            ) : (
+              <Button variant="secondary" asChild className="flex-1 md:flex-none">
+                <a
+                  href={`https://wa.me/${waContact}?text=${waMessage}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Share2 className="h-4 w-4 mr-2" /> Resumo WA
+                </a>
+              </Button>
+            )}
+            <Button
+              onClick={printDoc}
+              className="flex-1 md:flex-none shadow-elevation bg-primary hover:bg-primary/90 text-white"
             >
-              <MessageSquare className="h-4 w-4 mr-2" /> Compartilhar WA
-            </a>
-          </Button>
-          <Button onClick={printDoc}>
-            <Printer className="h-4 w-4 mr-2" /> Gerar PDF
-          </Button>
+              <Printer className="h-4 w-4 mr-2" /> Exportar PDF
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -89,8 +127,8 @@ export default function PrintReport() {
               <strong>{inspection.inspector}</strong>
             </div>
             <div>
-              <span className="text-slate-500 block mb-1">Status de Sincronização</span>
-              <strong>{inspection.isSynced ? 'Sincronizado' : 'Offline'}</strong>
+              <span className="text-slate-500 block mb-1">Status</span>
+              <strong>Exportação Local</strong>
             </div>
           </div>
         </div>
@@ -174,7 +212,7 @@ export default function PrintReport() {
         </div>
 
         <div className="mt-16 pt-8 border-t border-slate-200 text-center text-sm text-slate-500 break-inside-avoid">
-          <p>Documento gerado automaticamente pelo Sistema de Inspeções Nowavet Agro.</p>
+          <p>Documento gerado para exportação manual pelo Sistema de Inspeções Nowavet Agro.</p>
           <div className="mt-8 w-64 border-t border-slate-800 mx-auto pt-2">
             <strong>{inspection.inspector}</strong>
             <br />

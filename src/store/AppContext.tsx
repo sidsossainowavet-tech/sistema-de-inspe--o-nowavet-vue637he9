@@ -33,7 +33,7 @@ interface AppState {
   isCheckingSession: boolean
   login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>
   logout: () => Promise<void>
-  addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => Promise<void>
+  addInspection: (inspection: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => Promise<string>
   syncData: () => Promise<void>
   updateProfile: (profile: UserProfile) => Promise<void>
   toggleItemStatus: (id: string) => void
@@ -71,17 +71,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const localInsp: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
       const pendingLocal = localInsp.filter((i) => !i.isSynced)
 
+      const localHistRaw = localStorage.getItem('nowavet_local_history')
+      const localHist: Inspection[] = localHistRaw ? JSON.parse(localHistRaw) : []
+
+      const localMap = new Map<string, Inspection>()
+      pendingLocal.forEach((i) => localMap.set(i.id, i))
+      localHist.forEach((i) => localMap.set(i.id, i))
+
+      const allLocal = Array.from(localMap.values())
+
       const mergedInspections = [
-        ...pendingLocal,
-        ...data.inspections.filter(
-          (di: Inspection) => !pendingLocal.some((pl: Inspection) => pl.id === di.id),
-        ),
+        ...allLocal,
+        ...data.inspections.filter((di: Inspection) => !localMap.has(di.id)),
       ]
+
+      mergedInspections.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       setInspectionsState(mergedInspections)
     } catch (err) {
       console.error('Failed to load cloud data', err)
       const localInspRaw = localStorage.getItem('nowavet_local_inspections')
-      if (localInspRaw) setInspectionsState(JSON.parse(localInspRaw))
+      const localHistRaw = localStorage.getItem('nowavet_local_history')
+
+      const localInsp: Inspection[] = localInspRaw ? JSON.parse(localInspRaw) : []
+      const localHist: Inspection[] = localHistRaw ? JSON.parse(localHistRaw) : []
+
+      const localMap = new Map<string, Inspection>()
+      localInsp.forEach((i) => localMap.set(i.id, i))
+      localHist.forEach((i) => localMap.set(i.id, i))
+
+      const allLocal = Array.from(localMap.values())
+      allLocal.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      if (allLocal.length > 0) setInspectionsState(allLocal)
     }
   }
 
@@ -142,12 +162,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const pending = inspections.filter((i) => !i.isSynced)
+    if (pending.length === 0) return
+
     try {
       localStorage.setItem('nowavet_local_inspections', JSON.stringify(pending))
     } catch (error: any) {
       console.error('Erro ao salvar no localStorage:', error)
       if (error.name === 'QuotaExceededError' || error.message?.includes('quota')) {
-        toast.error('Armazenamento do dispositivo cheio.')
         try {
           const stripped = pending.map((insp) => ({
             ...insp,
@@ -157,7 +178,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }),
           }))
           localStorage.setItem('nowavet_local_inspections', JSON.stringify(stripped))
-          toast.warning('Inspeções pendentes foram salvas sem fotos devido à falta de espaço.')
+          toast.warning('Inspeções pendentes salvas sem fotos por falta de espaço.')
         } catch (e2) {
           console.error('Falha no fallback de armazenamento:', e2)
         }
@@ -266,51 +287,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       for (const insp of currentInspections) {
         if (!insp.isSynced) {
           try {
-            // Prioriza o envio de email direto
             const result = await api.sendInspectionEmail(insp, contacts)
-
-            // Tenta salvar na nuvem apenas como backup.
-            // Se falhar o estocamento na nuvem, o processo continua sem bloquear.
             try {
               await api.saveInspection(insp)
             } catch (dbErr: any) {
-              console.warn('Backup no Supabase falhou, mas email foi enviado:', dbErr)
+              console.warn('Backup no Supabase falhou', dbErr)
             }
-
             syncSuccess = true
-
-            if (result && result.emailError) {
-              toast.warning(
-                `Sincronização (${insp.structure}): Erro no e-mail - ${result.emailError}`,
-              )
-              SystemLogger.logError(
-                profile.email,
-                'Sincronização Automática (E-mail)',
-                result.emailError,
-                { inspectionId: insp.id },
-              )
-            }
-            if (result && result.whatsappError && !result.whatsappError.includes('Simulação')) {
-              toast.warning(
-                `Sincronização (${insp.structure}): Erro no WhatsApp - ${result.whatsappError}`,
-              )
-              SystemLogger.logError(
-                profile.email,
-                'Sincronização Automática (WhatsApp)',
-                result.whatsappError,
-                { inspectionId: insp.id },
-              )
-            }
-            SystemLogger.logAudit(profile.email, 'Inspeção sincronizada', {
-              inspectionId: insp.id,
-              structure: insp.structure,
-            })
           } catch (e: any) {
-            console.error('Falha na sincronização da inspeção:', insp.id, e)
-            toast.error(`Aviso (${insp.structure}): ${e.message}`)
-            SystemLogger.logError(profile.email, 'Falha Geral na Sincronização', e.message, {
-              inspectionId: insp.id,
-            })
             remaining.push(insp)
           }
         }
@@ -319,30 +303,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (remaining.length > 0) {
         try {
           localStorage.setItem('nowavet_local_inspections', JSON.stringify(remaining))
-        } catch (error: any) {
-          console.error('Erro de quota durante sync:', error)
-          try {
-            const stripped = remaining.map((insp) => ({
-              ...insp,
-              answers: insp.answers.map((a) => {
-                const { photo, ...rest } = a
-                return rest
-              }),
-            }))
-            localStorage.setItem('nowavet_local_inspections', JSON.stringify(stripped))
-          } catch (e2) {
-            console.error('Falha no fallback do sync:', e2)
-          }
+        } catch (error) {
+          const stripped = remaining.map((insp) => ({
+            ...insp,
+            answers: insp.answers.map((a) => {
+              const { photo, ...rest } = a
+              return rest
+            }),
+          }))
+          localStorage.setItem('nowavet_local_inspections', JSON.stringify(stripped))
         }
       } else if (syncSuccess) {
         localStorage.removeItem('nowavet_local_inspections')
       }
 
       await loadCloudData()
-
-      if (syncSuccess && remaining.length === 0) {
-        toast.success('Todas as inspeções pendentes foram sincronizadas.')
-      }
     } catch (e) {
       console.error('Data Sync Error:', e)
     } finally {
@@ -350,99 +325,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }
 
-  const addInspection = async (data: Omit<Inspection, 'id' | 'date' | 'isSynced'>) => {
+  const addInspection = async (
+    data: Omit<Inspection, 'id' | 'date' | 'isSynced'>,
+  ): Promise<string> => {
     const newInspection: Inspection = {
       ...data,
       id: crypto.randomUUID(),
       date: new Date().toISOString(),
-      isSynced: false,
+      // Marca como true para evitar upload ao banco, o foco agora é a exportação manual do PDF
+      isSynced: true,
     }
 
-    if (navigator.onLine) {
-      setIsSyncing(true)
-      try {
-        // Envio direto por e-mail é o prioritário
-        const result = await api.sendInspectionEmail(newInspection, contacts)
-
-        // Backup na base de dados sem interrupções se falhar (Ignora estocagem obrigatória)
-        try {
-          await api.saveInspection(newInspection)
-        } catch (dbErr: any) {
-          console.warn(
-            'Falha ao estocar inspeção na nuvem. Ignorando para focar no envio direto de e-mail.',
-            dbErr,
-          )
-          SystemLogger.logError(profile.email, 'Backup em Nuvem', dbErr.message, {
-            inspectionId: newInspection.id,
-          })
-        }
-
-        SystemLogger.logAudit(
-          profile.email,
-          'Nova inspeção registrada e enviada direto por e-mail',
-          {
-            inspectionId: newInspection.id,
-            structure: newInspection.structure,
-          },
+    try {
+      const existingRaw = localStorage.getItem('nowavet_local_history')
+      const existing: Inspection[] = existingRaw ? JSON.parse(existingRaw) : []
+      localStorage.setItem('nowavet_local_history', JSON.stringify([newInspection, ...existing]))
+    } catch (error: any) {
+      console.warn('Erro ao salvar local_history:', error)
+      if (error.name === 'QuotaExceededError' || error.message?.includes('quota')) {
+        toast.warning(
+          'Armazenamento do dispositivo cheio. O PDF deve ser exportado imediatamente.',
+          { duration: 6000 },
         )
-
-        const textOnlyAnswers = newInspection.answers.map((a) => {
-          const { photo, ...rest } = a
-          return rest
-        })
-        const textOnlyInsp = { ...newInspection, answers: textOnlyAnswers, isSynced: true }
-
-        if (result.emailError) {
-          toast.warning(`Relatório processado, mas ocorreu erro no E-mail: ${result.emailError}`, {
-            duration: 6000,
-          })
-          SystemLogger.logError(profile.email, 'Envio de Relatório (E-mail)', result.emailError, {
-            inspectionId: newInspection.id,
-          })
-        } else {
-          toast.success(
-            'Relatório gerado e encaminhado direto para a Auditoria Interna com sucesso!',
-          )
-        }
-
-        if (result.whatsappError && !result.whatsappError.includes('Simulação')) {
-          toast.warning(`Erro no envio via WhatsApp: ${result.whatsappError}`, { duration: 6000 })
-          SystemLogger.logError(
-            profile.email,
-            'Envio de Relatório (WhatsApp)',
-            result.whatsappError,
-            { inspectionId: newInspection.id },
-          )
-        } else if (!result.whatsappError) {
-          toast.success('Relatório também encaminhado para o WhatsApp cadastrado (com fotos)!')
-        }
-
-        setInspectionsState((prev) => [textOnlyInsp, ...prev])
-      } catch (e: any) {
-        console.error('Erro geral no envio:', e)
-        toast.error(
-          `Falha de comunicação: ${e.message}. A inspeção foi salva localmente para reenvio.`,
-          {
-            duration: 8000,
-          },
-        )
-        SystemLogger.logError(profile.email, 'Processamento Crítico de Inspeção', e.message, {
-          inspectionId: newInspection.id,
-        })
-        setInspectionsState((prev) => [newInspection, ...prev])
-      } finally {
-        setIsSyncing(false)
       }
-    } else {
-      setInspectionsState((prev) => [newInspection, ...prev])
-      SystemLogger.logAudit(profile.email, 'Nova inspeção registrada (Offline)', {
-        inspectionId: newInspection.id,
-        structure: newInspection.structure,
-      })
-      toast.info(
-        'Modo Offline. Inspeção salva localmente com fotos. Será encaminhada por e-mail assim que reconectar.',
-      )
     }
+
+    // Mantém as fotos no estado para que o PDF gerado on-demand possa renderizá-las
+    setInspectionsState((prev) => [newInspection, ...prev])
+
+    SystemLogger.logAudit(profile.email, 'Nova inspeção finalizada (Armazenamento Local)', {
+      inspectionId: newInspection.id,
+      structure: newInspection.structure,
+    })
+
+    toast.success('Inspeção finalizada! Pronta para geração e exportação do PDF.', {
+      duration: 5000,
+    })
+    return newInspection.id
   }
 
   const toggleItemStatus = (id: string) => {
@@ -468,14 +387,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const clearLocalData = () => {
-    if (
-      confirm(
-        'Tem certeza? Isso apagará todas as inspeções locais não sincronizadas permanentemente.',
-      )
-    ) {
+    if (confirm('Tem certeza? Isso apagará todas as inspeções locais permanentemente.')) {
       SystemLogger.logAudit(profile.email, 'Limpeza de cache local de inspeções')
       setInspectionsState([])
       localStorage.removeItem('nowavet_local_inspections')
+      localStorage.removeItem('nowavet_local_history')
       if (navigator.onLine) {
         syncData()
       }
