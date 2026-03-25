@@ -64,14 +64,11 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      const { error: dbError } = await supabase
-        .from('users')
-        .update({
-          name: userData.name,
-          email: userData.email,
-          role: userData.role,
-        })
-        .eq('id', userData.id)
+      const { error: dbError } = await supabase.from('users').update({
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+      }).eq('id', userData.id)
 
       if (dbError) throw new Error(`Database Error: ${dbError.message}`)
 
@@ -81,12 +78,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'update_status') {
-      const { error: dbError } = await supabase
-        .from('users')
-        .update({
-          active: userData.active,
-        })
-        .eq('id', userData.id)
+      const { error: dbError } = await supabase.from('users').update({
+        active: userData.active,
+      }).eq('id', userData.id)
 
       if (dbError) throw new Error(`Database Error: ${dbError.message}`)
 
