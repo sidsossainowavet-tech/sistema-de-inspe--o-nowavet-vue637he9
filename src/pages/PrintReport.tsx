@@ -117,7 +117,7 @@ export default function PrintReport() {
             return (
               <div
                 key={index}
-                className={`flex flex-col md:flex-row gap-6 p-4 rounded-lg border ${isNC ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}
+                className={`flex flex-col gap-4 p-4 rounded-lg border ${isNC ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'} break-inside-avoid`}
               >
                 <div className="flex-1 space-y-3">
                   <div className="flex justify-between items-start">
@@ -152,12 +152,20 @@ export default function PrintReport() {
                 </div>
 
                 {answer.photo && (
-                  <div className="w-full md:w-48 h-32 shrink-0 border rounded overflow-hidden bg-slate-100">
-                    <img
-                      src={answer.photo}
-                      alt="Evidência"
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="mt-4 pt-4 border-t border-slate-200 print:border-t-0 print:pt-2 flex flex-col items-center md:items-start">
+                    <strong className="text-xs text-slate-500 uppercase block mb-2">
+                      Registro Fotográfico (10 x 15 cm):
+                    </strong>
+                    <div
+                      className="border border-slate-300 bg-slate-100 flex items-center justify-center overflow-hidden"
+                      style={{ width: '15cm', height: '10cm' }}
+                    >
+                      <img
+                        src={answer.photo}
+                        alt="Evidência"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
