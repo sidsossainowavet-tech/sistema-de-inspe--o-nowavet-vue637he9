@@ -55,6 +55,7 @@ function mapUser(r: any): UserAccount {
     role: r.role || 'evaluator',
     active: r.active !== false,
     avatar: getFileUrl(r, r.avatar),
+    notify: r.notify || false,
   }
 }
 function mapInspection(r: any): Inspection {
@@ -144,6 +145,9 @@ export const api = {
       })
     } else if (action === 'update') {
       const data: any = { email: userData.email, name: userData.name, role: userData.role }
+      if (userData.notify !== undefined) {
+        data.notify = userData.notify
+      }
       if (password) {
         data.password = password
         data.passwordConfirm = password

@@ -19,6 +19,7 @@ export async function getUsers(): Promise<UserAccount[]> {
     role: r.role || 'evaluator',
     active: r.active !== false,
     avatar: getFileUrl(r, r.avatar),
+    notify: r.notify || false,
   }))
 }
 
@@ -48,6 +49,7 @@ export async function updateUser(
     role?: string
     active?: boolean
     password?: string
+    notify?: boolean
   },
 ): Promise<void> {
   const updateData: Record<string, any> = {}
@@ -55,6 +57,7 @@ export async function updateUser(
   if (data.email !== undefined) updateData.email = data.email
   if (data.role !== undefined) updateData.role = data.role
   if (data.active !== undefined) updateData.active = data.active
+  if (data.notify !== undefined) updateData.notify = data.notify
   if (data.password) {
     updateData.password = data.password
     updateData.passwordConfirm = data.password

@@ -76,6 +76,7 @@ export interface UserAccount {
   active: boolean
   password?: string
   avatar?: string
+  notify?: boolean
 }
 
 export interface AuditLog {
@@ -109,4 +110,9 @@ export interface Holiday {
   id: string
   date: string
   name: string
+}
+
+export interface Setting {
+  key: string
+  value: string
 }

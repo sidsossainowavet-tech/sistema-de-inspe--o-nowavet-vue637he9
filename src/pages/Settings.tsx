@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { useAppContext } from '@/store/AppContext'
 import { ItemsManager } from '@/components/settings/ItemsManager'
 import { FacilitiesManager } from '@/components/settings/FacilitiesManager'
+import { NotificationConfig } from '@/components/settings/NotificationConfig'
 
 export default function Settings() {
   const { profile } = useAppContext()
@@ -111,6 +112,8 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {isAdmin && <NotificationConfig />}
 
       {isAdmin && <ItemsManager />}
 
