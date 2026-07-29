@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Leaf, Loader2, Shield } from 'lucide-react'
-import { isSupabaseConfigured } from '@/lib/api'
 
 export default function Login() {
   const { login, isAuthenticated, isCheckingSession } = useAppContext()
@@ -104,8 +103,7 @@ export default function Login() {
             </Button>
 
             <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-6 pt-4 border-t">
-              <Shield className="w-3 h-3 text-primary" /> Protegido por{' '}
-              {isSupabaseConfigured ? 'Supabase Auth' : 'Mock Local Auth'}
+              <Shield className="w-3 h-3 text-primary" /> Protegido por PocketBase Auth
             </p>
           </form>
         </CardContent>

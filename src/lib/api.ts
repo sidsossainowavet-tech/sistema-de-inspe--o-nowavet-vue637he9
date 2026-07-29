@@ -166,13 +166,11 @@ export const api = {
   saveItems: async (items: ChecklistItem[]) => {
     for (const item of items) {
       try {
-        await pb
-          .collection('checklist_items')
-          .update(item.id, {
-            name: item.name,
-            active: item.active,
-            mandatory: item.mandatory ?? true,
-          })
+        await pb.collection('checklist_items').update(item.id, {
+          name: item.name,
+          active: item.active,
+          mandatory: item.mandatory ?? true,
+        })
       } catch {
         try {
           await pb
@@ -188,24 +186,20 @@ export const api = {
   saveFacilities: async (facilities: Facility[]) => {
     for (const f of facilities) {
       try {
-        await pb
-          .collection('facilities')
-          .update(f.id, {
+        await pb.collection('facilities').update(f.id, {
+          name: f.name,
+          description: f.description,
+          frequency_days: f.frequencyDays || null,
+          category: f.category || '',
+        })
+      } catch {
+        try {
+          await pb.collection('facilities').create({
             name: f.name,
             description: f.description,
             frequency_days: f.frequencyDays || null,
             category: f.category || '',
           })
-      } catch {
-        try {
-          await pb
-            .collection('facilities')
-            .create({
-              name: f.name,
-              description: f.description,
-              frequency_days: f.frequencyDays || null,
-              category: f.category || '',
-            })
         } catch (e) {
           console.error('Error saving facility:', e)
         }

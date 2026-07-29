@@ -58,7 +58,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await pb.collection('users').authWithPassword(email, password)
       return { error: null }
-    } catch (error) {
+    } catch (error: any) {
+      const status = error?.status || 0
+      if (status === 400) {
+        return { error: new Error('Email ou senha incorretos.') }
+      }
       return { error }
     }
   }

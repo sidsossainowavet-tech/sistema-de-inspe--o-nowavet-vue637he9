@@ -239,11 +239,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await SystemLogger.logError(email, 'Autenticação', 'Credenciais inválidas', {
         err: error.message,
       })
-      return { success: false, message: 'Credenciais inválidas.' }
+      return { success: false, message: 'Email ou senha incorretos.' }
     }
 
     try {
       const u = await api.verifyUser(email)
+      if (u.active === false) {
+        await auth.signOut()
+        await SystemLogger.logError(email, 'Autenticação', 'Usuário inativo', {})
+        return { success: false, message: 'Usuário inativo. Contate o administrador.' }
+      }
       setProfile({
         name: u.name,
         email: u.email,
@@ -260,7 +265,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         err: err.message,
       })
       await auth.signOut()
-      return { success: false, message: 'Usuário não cadastrado na base de dados.' }
+      return { success: false, message: 'Email ou senha incorretos.' }
     }
   }
 
