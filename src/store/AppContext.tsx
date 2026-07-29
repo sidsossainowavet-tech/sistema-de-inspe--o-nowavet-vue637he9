@@ -63,7 +63,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loadCloudData = async () => {
     try {
-    const data = await getAppData()      setItemsState(data.items)
+      const data = await getAppData()
+      setItemsState(data.items)
       setFacilitiesState(data.facilities)
       setEvaluatorsState(data.evaluators)
       setContactsState(data.contacts)
