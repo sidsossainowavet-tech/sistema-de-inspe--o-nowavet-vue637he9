@@ -19,6 +19,10 @@ export interface Facility {
   id: string
   name: string
   description: string
+  address?: string
+  city?: string
+  state?: string
+  contactId?: string
   frequencyDays?: number
   category?: string
   managementTopics?: string[]

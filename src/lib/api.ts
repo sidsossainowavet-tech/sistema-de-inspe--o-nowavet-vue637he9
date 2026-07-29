@@ -21,6 +21,10 @@ function mapFacility(r: any): Facility {
     id: r.id,
     name: r.name,
     description: r.description || '',
+    address: r.address || '',
+    city: r.city || '',
+    state: r.state || '',
+    contactId: r.contact_id || undefined,
     frequencyDays: r.frequency_days || undefined,
     category: r.category || undefined,
   }
@@ -189,6 +193,10 @@ export const api = {
         await pb.collection('facilities').update(f.id, {
           name: f.name,
           description: f.description,
+          address: f.address || '',
+          city: f.city || '',
+          state: f.state || '',
+          contact_id: f.contactId || null,
           frequency_days: f.frequencyDays || null,
           category: f.category || '',
         })
@@ -197,6 +205,10 @@ export const api = {
           await pb.collection('facilities').create({
             name: f.name,
             description: f.description,
+            address: f.address || '',
+            city: f.city || '',
+            state: f.state || '',
+            contact_id: f.contactId || null,
             frequency_days: f.frequencyDays || null,
             category: f.category || '',
           })

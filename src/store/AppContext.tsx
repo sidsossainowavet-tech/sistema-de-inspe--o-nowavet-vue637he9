@@ -12,6 +12,7 @@ import {
 import { api } from '@/lib/api'
 import { defaultProfile } from '@/lib/defaults'
 import { useAuth } from '@/hooks/use-auth'
+import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { SystemLogger } from '@/lib/logger'
 import pb from '@/lib/pocketbase/client'
@@ -130,6 +131,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     })
     return unsubscribe
   }, [isAuthenticated])
+
+  useRealtime('facilities', () => {
+    if (isAuthenticated) loadCloudData()
+  })
+  useRealtime('checklist_items', () => {
+    if (isAuthenticated) loadCloudData()
+  })
 
   useEffect(() => {
     if (auth.loading) return

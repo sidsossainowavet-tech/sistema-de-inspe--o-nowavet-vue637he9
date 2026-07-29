@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppContext } from '@/store/AppContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,8 @@ import { Save, QrCode, Loader2, FileText, Printer } from 'lucide-react'
 export default function NewInspection() {
   const { items, facilities, evaluators, addInspection } = useAppContext()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const facilityParamSelected = useRef(false)
 
   const activeItems = items.filter((i) => i.active)
 
@@ -41,6 +43,18 @@ export default function NewInspection() {
       setStartTime(new Date().toISOString())
     }
   }, [facilityId, startTime])
+
+  useEffect(() => {
+    const facilityParam = searchParams.get('facility')
+    if (facilityParam && facilities.length > 0 && !facilityParamSelected.current) {
+      const found = facilities.find((f) => f.id === facilityParam)
+      if (found) {
+        setFacilityId(found.id)
+        facilityParamSelected.current = true
+        toast.success(`Instalação selecionada: ${found.name}`)
+      }
+    }
+  }, [facilities, searchParams])
 
   const handleAnswerChange = (ans: Answer) => {
     setAnswers((prev) => ({ ...prev, [ans.itemId]: ans }))
@@ -119,9 +133,20 @@ export default function NewInspection() {
   const handleScan = (data: string) => {
     setScannerOpen(false)
 
+    let scannedId: string | null = null
     if (data.startsWith('nowavet-facility:')) {
-      const id = data.replace('nowavet-facility:', '')
-      const found = facilities.find((f) => f.id === id)
+      scannedId = data.replace('nowavet-facility:', '')
+    } else {
+      try {
+        const url = new URL(data)
+        scannedId = url.searchParams.get('facility')
+      } catch {
+        // not a URL
+      }
+    }
+
+    if (scannedId) {
+      const found = facilities.find((f) => f.id === scannedId)
       if (found) {
         setFacilityId(found.id)
         toast.success(`Instalação identificada: ${found.name}`)

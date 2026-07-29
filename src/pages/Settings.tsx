@@ -7,6 +7,8 @@ import { Loader2, Archive, Download, ShieldAlert } from 'lucide-react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { useAppContext } from '@/store/AppContext'
+import { ItemsManager } from '@/components/settings/ItemsManager'
+import { FacilitiesManager } from '@/components/settings/FacilitiesManager'
 
 export default function Settings() {
   const { profile } = useAppContext()
@@ -109,6 +111,10 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {isAdmin && <ItemsManager />}
+
+      {isAdmin && <FacilitiesManager />}
 
       {isAdmin && (
         <Card className="border-primary/20">
