@@ -38,6 +38,7 @@ export interface Answer {
   status: StatusType
   photo?: string
   justification?: string
+  observations?: string
 }
 
 export interface Inspection {
@@ -88,4 +89,20 @@ export interface ErrorLog {
   error_message: string
   details?: any
   created_at: string
+}
+
+export interface Notification {
+  id: string
+  userId: string
+  facilityId: string
+  type: string
+  message: string
+  read: boolean
+  created: string
+}
+
+export interface Holiday {
+  id: string
+  date: string
+  name: string
 }
