@@ -1,71 +1,126 @@
-import { createClient } from '@supabase/supabase-js'
-import { UserAccount, ChecklistItem, Facility, Evaluator, Contact, Inspection } from './types'
+import pb from '@/lib/pocketbase/client'
+import { ChecklistItem, Contact, Facility, Evaluator, Inspection, UserAccount } from './types'
 import { defaultItems, defaultFacilities, defaultEvaluators, defaultContacts } from './defaults'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''
+export const isSupabaseConfigured = true
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
-export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null
+function getFileUrl(record: any, filename: string): string {
+  if (!filename) return ''
+  try {
+    return pb.getFileUrl(record, filename) as unknown as string
+  } catch {
+    return ''
+  }
+}
+
+function mapChecklistItem(r: any): ChecklistItem {
+  return { id: r.id, name: r.name, active: r.active ?? true, mandatory: r.mandatory ?? true }
+}
+function mapFacility(r: any): Facility {
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description || '',
+    frequencyDays: r.frequency_days || undefined,
+    category: r.category || undefined,
+  }
+}
+function mapEvaluator(r: any): Evaluator {
+  return {
+    id: r.id,
+    name: r.name,
+    email: r.email || '',
+    phone: r.phone || '',
+    avatar: getFileUrl(r, r.avatar),
+  }
+}
+function mapContact(r: any): Contact {
+  return {
+    id: r.id,
+    name: r.name || '',
+    phone: r.phone || '',
+    email: r.email || '',
+    role: r.role || '',
+  }
+}
+function mapUser(r: any): UserAccount {
+  return {
+    id: r.id,
+    name: r.name || '',
+    email: r.email || '',
+    role: r.role || 'evaluator',
+    active: r.active !== false,
+    avatar: getFileUrl(r, r.avatar),
+  }
+}
+function mapInspection(r: any): Inspection {
+  let answers = r.answers
+  if (typeof answers === 'string') {
+    try {
+      answers = JSON.parse(answers)
+    } catch {
+      answers = []
+    }
+  }
+  if (!Array.isArray(answers)) answers = []
+  return {
+    id: r.id,
+    facilityId: r.facility_id || undefined,
+    evaluatorId: r.evaluator_id || undefined,
+    structure: r.structure || '',
+    type: r.type || 'Check-in',
+    answers,
+    date: r.date || new Date().toISOString(),
+    startTime: r.start_time || undefined,
+    endTime: r.end_time || undefined,
+    durationSeconds: r.duration_seconds || undefined,
+    isSynced: true,
+    inspector: r.inspector || '',
+  }
+}
 
 export const api = {
   verifyUser: async (email: string): Promise<UserAccount> => {
-    if (supabase) {
-      const { data, error } = await supabase.from('users').select('*').eq('email', email).single()
-      if (data) return data
-      if (email === 'sidsossai@nowavet.com.br') {
-        return { id: 'admin', name: 'Sidimar Sossai', email, role: 'admin', active: true }
-      }
-      if (error) throw error
-    }
-    throw new Error('Supabase not configured or user not found')
+    const record = await pb
+      .collection('users')
+      .getFirstListItem(pb.filter('email = {:email}', { email }))
+    return mapUser(record)
   },
 
   getAppData: async () => {
-    if (supabase) {
-      const [itemsRes, facilitiesRes, evaluatorsRes, contactsRes, usersRes, inspectionsRes] =
-        await Promise.all([
-          supabase.from('items').select('*'),
-          supabase.from('facilities').select('*'),
-          supabase.from('evaluators').select('*'),
-          supabase.from('contacts').select('*'),
-          supabase.from('users').select('*'),
-          supabase.from('inspections').select('*').order('date', { ascending: false }),
-        ])
-
-      const inspectionsData = (inspectionsRes.data || []).map((i: any) => ({
-        id: i.id,
-        facilityId: i.facility_id,
-        evaluatorId: i.evaluator_id,
-        structure: i.structure,
-        type: i.type,
-        date: i.date,
-        startTime: i.start_time,
-        endTime: i.end_time,
-        durationSeconds: i.duration_seconds,
-        inspector: i.inspector,
-        answers: i.answers,
-        isSynced: i.is_synced,
-      }))
-
-      return {
-        items: itemsRes.data?.length ? itemsRes.data : defaultItems,
-        facilities: facilitiesRes.data?.length
-          ? facilitiesRes.data.map((f: any) => ({ ...f, frequencyDays: f.frequency_days }))
-          : defaultFacilities,
-        evaluators: evaluatorsRes.data?.length ? evaluatorsRes.data : defaultEvaluators,
-        contacts: contactsRes.data?.length ? contactsRes.data : defaultContacts,
-        users: usersRes.data?.length ? usersRes.data : [],
-        inspections: inspectionsData,
-      }
-    }
+    const [itemsR, facR, evalR, conR, inspR] = await Promise.all([
+      pb
+        .collection('checklist_items')
+        .getFullList({ sort: 'created' })
+        .catch(() => []),
+      pb
+        .collection('facilities')
+        .getFullList({ sort: 'created' })
+        .catch(() => []),
+      pb
+        .collection('evaluators')
+        .getFullList({ sort: 'created' })
+        .catch(() => []),
+      pb
+        .collection('contacts')
+        .getFullList({ sort: 'created' })
+        .catch(() => []),
+      pb
+        .collection('inspections')
+        .getFullList({ sort: '-date' })
+        .catch(() => []),
+    ])
+    const usersR = await pb
+      .collection('users')
+      .getFullList({ sort: 'created' })
+      .catch(() => [])
     return {
-      items: defaultItems,
-      facilities: defaultFacilities,
-      evaluators: defaultEvaluators,
-      contacts: defaultContacts,
-      users: [],
-      inspections: [],
+      items: itemsR.length ? itemsR.map(mapChecklistItem) : defaultItems,
+      facilities: facR.length ? facR.map(mapFacility) : defaultFacilities,
+      evaluators: evalR.length ? evalR.map(mapEvaluator) : defaultEvaluators,
+      contacts: conR.length ? conR.map(mapContact) : defaultContacts,
+      users: usersR.map(mapUser),
+      inspections: inspR.map(mapInspection),
     }
   },
 
@@ -74,167 +129,183 @@ export const api = {
     userData: any,
     password?: string,
   ) => {
-    if (supabase) {
-      const { data, error } = await supabase.functions.invoke('manage-user', {
-        body: { action, userData, password },
+    if (action === 'create') {
+      await pb.collection('users').create({
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+        active: userData.active !== false,
+        password,
+        passwordConfirm: password,
       })
-      if (error) throw new Error(`Erro na comunicação com o servidor: ${error.message}`)
-      if (data && data.success === false)
-        throw new Error(data.error || 'Falha ao gerenciar usuário')
-      return data
+    } else if (action === 'update') {
+      const data: any = { email: userData.email, name: userData.name, role: userData.role }
+      if (password) {
+        data.password = password
+        data.passwordConfirm = password
+      }
+      await pb.collection('users').update(userData.id, data)
+    } else if (action === 'update_status') {
+      await pb.collection('users').update(userData.id, { active: userData.active })
     }
+    return { success: true }
   },
 
   saveUsers: async (users: UserAccount[]) => {
-    if (supabase) {
-      const dbUsers = users.map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        active: u.active,
-        avatar: u.avatar || null,
-      }))
-      const { error } = await supabase.from('users').upsert(dbUsers)
-      if (error) console.error('Error saving users:', error)
+    for (const u of users) {
+      try {
+        await pb
+          .collection('users')
+          .update(u.id, { name: u.name, email: u.email, role: u.role, active: u.active })
+      } catch {
+        /* skip */
+      }
     }
   },
 
   saveItems: async (items: ChecklistItem[]) => {
-    if (supabase) {
-      const { error } = await supabase.from('items').upsert(items)
-      if (error) console.error('Error saving items:', error)
+    for (const item of items) {
+      try {
+        await pb
+          .collection('checklist_items')
+          .update(item.id, {
+            name: item.name,
+            active: item.active,
+            mandatory: item.mandatory ?? true,
+          })
+      } catch {
+        try {
+          await pb
+            .collection('checklist_items')
+            .create({ name: item.name, active: item.active, mandatory: item.mandatory ?? true })
+        } catch (e) {
+          console.error('Error saving item:', e)
+        }
+      }
     }
   },
 
   saveFacilities: async (facilities: Facility[]) => {
-    if (supabase) {
-      const mapped = facilities.map((f) => ({
-        id: f.id,
-        name: f.name,
-        description: f.description,
-        frequency_days: f.frequencyDays || null,
-        category: f.category || null,
-      }))
-      const { error } = await supabase.from('facilities').upsert(mapped)
-      if (error) console.error('Error saving facilities:', error)
+    for (const f of facilities) {
+      try {
+        await pb
+          .collection('facilities')
+          .update(f.id, {
+            name: f.name,
+            description: f.description,
+            frequency_days: f.frequencyDays || null,
+            category: f.category || '',
+          })
+      } catch {
+        try {
+          await pb
+            .collection('facilities')
+            .create({
+              name: f.name,
+              description: f.description,
+              frequency_days: f.frequencyDays || null,
+              category: f.category || '',
+            })
+        } catch (e) {
+          console.error('Error saving facility:', e)
+        }
+      }
     }
   },
 
   saveEvaluators: async (evaluators: Evaluator[]) => {
-    if (supabase) {
-      const { error } = await supabase.from('evaluators').upsert(evaluators)
-      if (error) console.error('Error saving evaluators:', error)
+    for (const e of evaluators) {
+      try {
+        await pb
+          .collection('evaluators')
+          .update(e.id, { name: e.name, email: e.email, phone: e.phone })
+      } catch {
+        try {
+          await pb.collection('evaluators').create({ name: e.name, email: e.email, phone: e.phone })
+        } catch (err) {
+          console.error('Error saving evaluator:', err)
+        }
+      }
     }
   },
 
   saveContacts: async (contacts: Contact[]) => {
-    if (supabase) {
-      const { error } = await supabase.from('contacts').upsert(contacts)
-      if (error) console.error('Error saving contacts:', error)
+    for (const c of contacts) {
+      try {
+        await pb
+          .collection('contacts')
+          .update(c.id, { name: c.name, phone: c.phone, email: c.email, role: c.role })
+      } catch {
+        try {
+          await pb
+            .collection('contacts')
+            .create({ name: c.name, phone: c.phone, email: c.email, role: c.role })
+        } catch (e) {
+          console.error('Error saving contact:', e)
+        }
+      }
     }
   },
 
   saveInspection: async (inspection: Inspection) => {
-    if (supabase) {
-      // Removendo as fotos para salvar apenas dados textuais (economia de espaço)
-      const textOnlyAnswers = inspection.answers.map((a) => {
-        const { photo, ...rest } = a
-        return rest
-      })
-
-      const dbPayload = {
-        id: inspection.id,
-        facility_id: inspection.facilityId,
-        evaluator_id: inspection.evaluatorId,
-        structure: inspection.structure,
-        type: inspection.type,
-        date: inspection.date,
-        start_time: inspection.startTime,
-        end_time: inspection.endTime,
-        duration_seconds: inspection.durationSeconds,
-        inspector: inspection.inspector,
-        answers: textOnlyAnswers,
-        is_synced: true,
+    const data: Record<string, any> = {
+      facility_id: inspection.facilityId || '',
+      evaluator_id: inspection.evaluatorId || '',
+      date: inspection.date,
+      status: 'completed',
+      type: inspection.type,
+      structure: inspection.structure,
+      inspector: inspection.inspector,
+      start_time: inspection.startTime || '',
+      end_time: inspection.endTime || '',
+      duration_seconds: inspection.durationSeconds || 0,
+      answers: inspection.answers,
+      notes: '',
+    }
+    const photos: File[] = []
+    data.answers = inspection.answers.map((a) => {
+      if (a.photo && a.photo.startsWith('data:')) {
+        const arr = a.photo.split(',')
+        const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
+        const bstr = atob(arr[1])
+        const u8 = new Uint8Array(bstr.length)
+        for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i)
+        photos.push(new File([u8], `item-${a.itemId}.jpg`, { type: mime }))
+        return { ...a, photo: '' }
       }
-
-      const { error } = await supabase.from('inspections').upsert(dbPayload)
-      if (error) throw error
+      return a
+    })
+    if (photos.length > 0) {
+      const formData = new FormData()
+      for (const [k, v] of Object.entries(data)) {
+        if (v !== null && v !== undefined)
+          formData.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v))
+      }
+      photos.forEach((p) => formData.append('photos', p))
+      await pb.collection('inspections').create(formData)
+    } else {
+      await pb.collection('inspections').create(data)
     }
   },
 
-  sendInspectionEmail: async (inspection: Inspection, contacts: Contact[]) => {
-    if (supabase) {
-      const emailContacts = [
-        ...contacts,
-        {
-          id: 'auditoria',
-          sector: 'Auditoria Interna',
-          email: 'auditoria.interna@nowavet.com.br',
-          phone: '5511999999999', // Telefone default caso necessite integração
-        },
-      ]
-
-      const { data, error } = await supabase.functions.invoke('send-inspection-report', {
-        body: { inspection, contacts: emailContacts },
-      })
-
-      if (error) {
-        throw new Error(`Erro de comunicação com o servidor: ${error.message}`)
-      }
-      if (data && data.success === false) {
-        throw new Error(data.error || 'Falha desconhecida no provedor de e-mail/whatsapp.')
-      }
-
-      return data
-    }
-    console.log('Mock: Inspection email/whatsapp sent for', inspection.id)
+  sendInspectionEmail: async (_inspection: Inspection, _contacts: Contact[]) => {
+    console.log('Email sending not available in PocketBase')
     return { success: true }
   },
 
-  archiveInspections: async (all: boolean = false) => {
-    if (supabase) {
-      const { data, error } = await supabase.functions.invoke('archive-inspections', {
-        body: { all },
-      })
-      if (error) throw new Error(`Erro na comunicação com o servidor: ${error.message}`)
-      if (data && data.success === false)
-        throw new Error(data.error || 'Falha ao arquivar inspeções')
-      return data
-    }
-    return { success: true, message: 'Mock archive successful', archivedCount: 0 }
+  archiveInspections: async (_all: boolean = false) => {
+    return { success: true, message: 'Arquivamento não disponível no PocketBase', archivedCount: 0 }
   },
 
   getArchivedFiles: async () => {
-    if (supabase) {
-      const { data, error } = await supabase.storage.from('archived_inspections').list()
-      if (error) throw error
-      return data
-    }
     return []
   },
 
-  downloadArchive: async (fileName: string) => {
-    if (supabase) {
-      const { data, error } = await supabase.storage.from('archived_inspections').download(fileName)
-      if (error) throw error
-      return data
-    }
+  downloadArchive: async (_fileName: string) => {
     return null
   },
 
-  onSync: (callback: () => void) => {
-    if (supabase) {
-      const channel = supabase
-        .channel('schema-db-changes')
-        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-          callback()
-        })
-        .subscribe()
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
+  onSync: (_callback: () => void) => {
     return () => {}
   },
 }

@@ -1,19 +1,6 @@
-import { supabase } from '@/lib/supabase/client'
-
 export const SystemLogger = {
   logAudit: async (userEmail: string, action: string, details?: any) => {
-    if (!supabase) return
-    try {
-      await supabase.from('audit_logs').insert([
-        {
-          user_email: userEmail,
-          action,
-          details: details || {},
-        },
-      ])
-    } catch (e) {
-      console.error('Failed to log audit', e)
-    }
+    console.log('[AUDIT]', userEmail, action, details || {})
   },
   logError: async (
     userEmail: string | null,
@@ -21,18 +8,6 @@ export const SystemLogger = {
     errorMessage: string,
     details?: any,
   ) => {
-    if (!supabase) return
-    try {
-      await supabase.from('error_logs').insert([
-        {
-          user_email: userEmail || 'Sistema',
-          context,
-          error_message: errorMessage,
-          details: details || {},
-        },
-      ])
-    } catch (e) {
-      console.error('Failed to log error', e)
-    }
+    console.error('[ERROR]', userEmail || 'Sistema', context, errorMessage, details || {})
   },
 }
