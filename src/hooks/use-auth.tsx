@@ -63,7 +63,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (status === 400) {
         return { error: new Error('Email ou senha incorretos.') }
       }
-      return { error }
+      if (status === 0) {
+        return { error: new Error('Erro de conexão. Verifique sua internet e tente novamente.') }
+      }
+      return { error: new Error('Erro ao efetuar login. Tente novamente.') }
     }
   }
 

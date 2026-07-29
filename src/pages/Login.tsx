@@ -36,14 +36,18 @@ export default function Login() {
     }
 
     setIsLoading(true)
-    const result = await login(email, password)
-    setIsLoading(false)
-
-    if (result.success) {
-      toast.success('Login efetuado com sucesso!')
-      navigate('/')
-    } else {
-      toast.error(result.message || 'Credenciais inválidas.')
+    try {
+      const result = await login(email, password)
+      if (result.success) {
+        toast.success('Login efetuado com sucesso!')
+        navigate('/')
+      } else {
+        toast.error(result.message || 'Credenciais inválidas.')
+      }
+    } catch {
+      toast.error('Erro inesperado ao efetuar login. Tente novamente.')
+    } finally {
+      setIsLoading(false)
     }
   }
 

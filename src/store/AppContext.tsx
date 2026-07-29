@@ -7,12 +7,15 @@ import {
   Facility,
   Evaluator,
   UserAccount,
+  UserRole,
 } from '@/lib/types'
 import { api } from '@/lib/api'
 import { defaultProfile } from '@/lib/defaults'
 import { useAuth } from '@/hooks/use-auth'
 import { toast } from 'sonner'
 import { SystemLogger } from '@/lib/logger'
+import pb from '@/lib/pocketbase/client'
+import { getAppData } from '@/services/app-data'
 
 interface AppState {
   items: ChecklistItem[]
@@ -60,8 +63,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loadCloudData = async () => {
     try {
-      const data = await api.getAppData()
-      setItemsState(data.items)
+    const data = await getAppData()      setItemsState(data.items)
       setFacilitiesState(data.facilities)
       setEvaluatorsState(data.evaluators)
       setContactsState(data.contacts)
@@ -133,24 +135,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (auth.user) {
       if (!isAuthenticated) {
-        api
-          .verifyUser(auth.user.email!)
-          .then((u) => {
-            setProfile({
-              name: u.name,
-              email: u.email,
-              phone: u.phone || '',
-              avatar: u.avatar || '',
-              role: u.role,
-            })
-            setIsAuthenticated(true)
-            loadCloudData().finally(() => setIsCheckingSession(false))
+        const u = auth.user
+        if (u.active === false) {
+          auth.signOut()
+          setIsAuthenticated(false)
+          setIsCheckingSession(false)
+        } else {
+          setProfile({
+            name: u.name || '',
+            email: u.email || '',
+            phone: u.phone || '',
+            avatar: u.avatar ? (pb.getFileUrl(u, u.avatar) as unknown as string) : '',
+            role: (u.role as UserRole) || 'evaluator',
           })
-          .catch(() => {
-            auth.signOut()
-            setIsAuthenticated(false)
-            setIsCheckingSession(false)
-          })
+          setIsAuthenticated(true)
+          loadCloudData().finally(() => setIsCheckingSession(false))
+        }
       } else {
         setIsCheckingSession(false)
       }
@@ -236,37 +236,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = async (email: string, pass: string) => {
     const { error } = await auth.signIn(email, pass)
     if (error) {
-      await SystemLogger.logError(email, 'Autenticação', 'Credenciais inválidas', {
+      await SystemLogger.logError(email, 'Autenticação', 'Falha no login', {
         err: error.message,
       })
-      return { success: false, message: 'Email ou senha incorretos.' }
+      return { success: false, message: error.message || 'Email ou senha incorretos.' }
     }
 
-    try {
-      const u = await api.verifyUser(email)
-      if (u.active === false) {
-        await auth.signOut()
-        await SystemLogger.logError(email, 'Autenticação', 'Usuário inativo', {})
-        return { success: false, message: 'Usuário inativo. Contate o administrador.' }
-      }
-      setProfile({
-        name: u.name,
-        email: u.email,
-        phone: u.phone || '',
-        avatar: u.avatar || '',
-        role: u.role,
-      })
-      setIsAuthenticated(true)
-      await loadCloudData()
-      await SystemLogger.logAudit(email, 'Login efetuado no sistema')
-      return { success: true }
-    } catch (err: any) {
-      await SystemLogger.logError(email, 'Autenticação', 'Usuário não cadastrado', {
-        err: err.message,
-      })
-      await auth.signOut()
-      return { success: false, message: 'Email ou senha incorretos.' }
+    const u = pb.authStore.record
+    if (!u) {
+      return { success: false, message: 'Erro ao autenticar. Tente novamente.' }
     }
+
+    if (u.active === false) {
+      await auth.signOut()
+      await SystemLogger.logError(email, 'Autenticação', 'Usuário inativo', {})
+      return { success: false, message: 'Usuário inativo. Contate o administrador.' }
+    }
+
+    setProfile({
+      name: u.name || '',
+      email: u.email || '',
+      phone: u.phone || '',
+      avatar: u.avatar ? (pb.getFileUrl(u, u.avatar) as unknown as string) : '',
+      role: (u.role as UserRole) || 'evaluator',
+    })
+    setIsAuthenticated(true)
+    await loadCloudData()
+    await SystemLogger.logAudit(email, 'Login efetuado no sistema')
+    return { success: true }
   }
 
   const logout = async () => {
