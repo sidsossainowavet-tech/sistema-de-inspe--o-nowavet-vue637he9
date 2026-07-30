@@ -40,7 +40,7 @@ export interface Answer {
   itemId: string
   itemName?: string
   status: StatusType
-  photo?: string
+  photos?: string[]
   justification?: string
   observations?: string
 }

@@ -1,13 +1,11 @@
 import pb from '@/lib/pocketbase/client'
 import { Inspection } from '@/lib/types'
+import { createItem, deleteItemsByInspection } from '@/services/items'
 
-function getFileUrl(record: any, filename: string): string {
-  if (!filename) return ''
-  try {
-    return pb.getFileUrl(record, filename) as unknown as string
-  } catch {
-    return ''
-  }
+const STATUS_MAP: Record<string, string> = {
+  C: 'approved',
+  NC: 'disapproved',
+  NA: 'needs_review',
 }
 
 function mapInspection(r: any): Inspection {
@@ -42,25 +40,19 @@ export async function getInspections(): Promise<Inspection[]> {
   return records.map(mapInspection)
 }
 
-function dataURLtoFile(dataURL: string, filename: string): File {
-  const arr = dataURL.split(',')
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
-  const bstr = atob(arr[1])
-  const n = bstr.length
-  const u8arr = new Uint8Array(n)
-  for (let i = 0; i < n; i++) u8arr[i] = bstr.charCodeAt(i)
-  return new File([u8arr], filename, { type: mime })
+export async function getInspection(id: string): Promise<Inspection> {
+  const r = await pb.collection('inspections').getOne(id)
+  return mapInspection(r)
 }
 
 export async function createInspection(inspection: Inspection): Promise<Inspection> {
-  const photos: File[] = []
-  const cleanAnswers = inspection.answers.map((a) => {
-    if (a.photo && a.photo.startsWith('data:')) {
-      photos.push(dataURLtoFile(a.photo, `item-${a.itemId}.jpg`))
-      return { ...a, photo: '' }
-    }
-    return a
-  })
+  const cleanAnswers = inspection.answers.map((a) => ({
+    itemId: a.itemId,
+    itemName: a.itemName,
+    status: a.status,
+    justification: a.justification,
+    observations: a.observations,
+  }))
 
   const data: Record<string, any> = {
     facility_id: inspection.facilityId || '',
@@ -77,22 +69,73 @@ export async function createInspection(inspection: Inspection): Promise<Inspecti
     notes: '',
   }
 
-  let record
-  if (photos.length > 0) {
-    const formData = new FormData()
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== null && value !== undefined) {
-        formData.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value))
-      }
+  const record = await pb.collection('inspections').create(data)
+
+  for (const answer of inspection.answers) {
+    if (!answer.status) continue
+    try {
+      await createItem(record.id, {
+        name: answer.itemName || answer.itemId,
+        status: STATUS_MAP[answer.status] || 'needs_review',
+        notes: answer.justification || '',
+        observations: answer.observations || '',
+        photos: answer.photos,
+      })
+    } catch (err) {
+      console.error('Failed to create item:', err)
     }
-    photos.forEach((p) => formData.append('photos', p))
-    record = await pb.collection('inspections').create(formData)
-  } else {
-    record = await pb.collection('inspections').create(data)
   }
+
+  return mapInspection(record)
+}
+
+export async function updateInspection(id: string, inspection: Inspection): Promise<Inspection> {
+  const cleanAnswers = inspection.answers.map((a) => ({
+    itemId: a.itemId,
+    itemName: a.itemName,
+    status: a.status,
+    justification: a.justification,
+    observations: a.observations,
+  }))
+
+  const data: Record<string, any> = {
+    facility_id: inspection.facilityId || '',
+    evaluator_id: inspection.evaluatorId || '',
+    date: inspection.date,
+    status: 'completed',
+    type: inspection.type,
+    structure: inspection.structure,
+    inspector: inspection.inspector,
+    start_time: inspection.startTime || '',
+    end_time: inspection.endTime || '',
+    duration_seconds: inspection.durationSeconds || 0,
+    answers: cleanAnswers,
+    notes: '',
+  }
+
+  await pb.collection('inspections').update(id, data)
+  await deleteItemsByInspection(id)
+
+  for (const answer of inspection.answers) {
+    if (!answer.status) continue
+    try {
+      await createItem(id, {
+        name: answer.itemName || answer.itemId,
+        status: STATUS_MAP[answer.status] || 'needs_review',
+        notes: answer.justification || '',
+        observations: answer.observations || '',
+        photos: answer.photos,
+      })
+    } catch (err) {
+      console.error('Failed to create item:', err)
+    }
+  }
+
+  const record = await pb.collection('inspections').getOne(id)
   return mapInspection(record)
 }
 
 export async function deleteInspection(id: string): Promise<void> {
+  await deleteItemsByInspection(id)
   await pb.collection('inspections').delete(id)
 }

@@ -1,11 +1,10 @@
-import React, { useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
-import { Camera, AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { ChecklistItem, Answer, StatusType } from '@/lib/types'
+import { FileUpload } from '@/components/FileUpload'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -15,91 +14,24 @@ interface Props {
 }
 
 export function ChecklistItemCard({ item, answer, onChange }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
   const currentStatus = answer?.status || null
-  const currentPhoto = answer?.photo || ''
+  const currentPhotos = answer?.photos || []
   const currentJustification = answer?.justification || ''
   const isMandatory = item.mandatory !== false
 
-  const handleStatusChange = (val: string) => {
-    onChange({
-      itemId: item.id,
-      status: val as StatusType,
-      photo: currentPhoto,
-      justification: currentJustification,
-    })
-  }
-
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const update = (partial: Partial<Answer>) => {
     onChange({
       itemId: item.id,
       status: currentStatus,
-      photo: currentPhoto,
-      justification: e.target.value,
-    })
-  }
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const img = new Image()
-        img.onload = () => {
-          const canvas = document.createElement('canvas')
-          const MAX_WIDTH = 1024
-          const MAX_HEIGHT = 1024
-          let width = img.width
-          let height = img.height
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width
-              width = MAX_WIDTH
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height
-              height = MAX_HEIGHT
-            }
-          }
-
-          canvas.width = width
-          canvas.height = height
-          const ctx = canvas.getContext('2d')
-
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height)
-            // Compress image to avoid Edge Function Payload Limits and LocalStorage Quota Exceeded
-            const compressedPhoto = canvas.toDataURL('image/jpeg', 0.6)
-
-            onChange({
-              itemId: item.id,
-              status: currentStatus,
-              photo: compressedPhoto,
-              justification: currentJustification,
-            })
-          }
-        }
-        img.src = reader.result as string
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const removePhoto = () => {
-    onChange({
-      itemId: item.id,
-      status: currentStatus,
-      photo: undefined,
+      photos: currentPhotos,
       justification: currentJustification,
+      ...partial,
     })
   }
 
   const isNC = currentStatus === 'NC'
   const isComplete =
-    currentStatus && currentPhoto && (!isNC || (isNC && currentJustification.trim().length > 0))
+    currentStatus && currentPhotos.length > 0 && (!isNC || currentJustification.trim().length > 0)
 
   return (
     <Card
@@ -109,84 +41,51 @@ export function ChecklistItemCard({ item, answer, onChange }: Props) {
       )}
     >
       <CardContent className="p-4 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div className="flex-1">
-            <h4 className="font-semibold text-base mb-3 flex items-center">
-              {item.name}
-              {isMandatory && <span className="text-destructive ml-1 text-lg leading-none">*</span>}
-            </h4>
-            <RadioGroup
-              value={currentStatus || ''}
-              onValueChange={handleStatusChange}
-              className="flex gap-4"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem
-                  value="C"
-                  id={`${item.id}-c`}
-                  className="text-accent border-accent"
-                />
-                <Label htmlFor={`${item.id}-c`} className="cursor-pointer">
-                  Conforme
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem
-                  value="NC"
-                  id={`${item.id}-nc`}
-                  className="text-destructive border-destructive"
-                />
-                <Label htmlFor={`${item.id}-nc`} className="cursor-pointer">
-                  Não Conforme
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="NA" id={`${item.id}-na`} />
-                <Label htmlFor={`${item.id}-na`} className="cursor-pointer">
-                  N/A
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
+        <div>
+          <h4 className="font-semibold text-base mb-3 flex items-center">
+            {item.name}
+            {isMandatory && <span className="text-destructive ml-1 text-lg leading-none">*</span>}
+          </h4>
+          <RadioGroup
+            value={currentStatus || ''}
+            onValueChange={(v) => update({ status: v as StatusType })}
+            className="flex gap-4"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="C" id={`${item.id}-c`} className="text-accent border-accent" />
+              <Label htmlFor={`${item.id}-c`} className="cursor-pointer">
+                Conforme
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem
+                value="NC"
+                id={`${item.id}-nc`}
+                className="text-destructive border-destructive"
+              />
+              <Label htmlFor={`${item.id}-nc`} className="cursor-pointer">
+                Não Conforme
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="NA" id={`${item.id}-na`} />
+              <Label htmlFor={`${item.id}-na`} className="cursor-pointer">
+                N/A
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
 
-          <div className="shrink-0 flex flex-col items-center justify-center border rounded-md p-2 bg-muted/50 w-full md:w-32 h-32 relative overflow-hidden group">
-            {currentPhoto ? (
-              <>
-                <img
-                  src={currentPhoto}
-                  alt="Evidência"
-                  className="object-cover w-full h-full rounded"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={removePhoto}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </>
-            ) : (
-              <div
-                className="text-center space-y-2 cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Camera className="mx-auto h-8 w-8 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground block">
-                  {currentStatus ? 'Foto (Obrigatória)' : 'Adicionar Foto'}
-                </span>
-              </div>
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handlePhotoUpload}
+        {currentStatus && (
+          <div className="animate-fade-in-up">
+            <FileUpload
+              photos={currentPhotos}
+              onChange={(photos) => update({ photos })}
+              itemId={item.id}
+              maxPhotos={5}
             />
           </div>
-        </div>
+        )}
 
         {isNC && (
           <div className="space-y-2 animate-fade-in-up">
@@ -201,7 +100,7 @@ export function ChecklistItemCard({ item, answer, onChange }: Props) {
               id={`just-${item.id}`}
               placeholder="Descreva o problema encontrado detalhadamente..."
               value={currentJustification}
-              onChange={handleTextChange}
+              onChange={(e) => update({ justification: e.target.value })}
               className={cn('resize-none', !currentJustification && 'border-destructive')}
             />
           </div>

@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppProvider } from '@/store/AppContext'
 import { AuthProvider } from '@/hooks/use-auth'
 
+import NewInspectionEdit from './pages/NewInspection'
 import Layout from './components/Layout'
 import Index from './pages/Index'
 import Login from './pages/Login'
@@ -28,6 +29,7 @@ const App = () => (
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/inspecao/nova" element={<NewInspection />} />
+              <Route path="/inspecao/:id/editar" element={<NewInspectionEdit />} />
               <Route path="/qualidade" element={<QualityDashboard />} />
               <Route path="/configuracoes" element={<Settings />} />
               <Route path="/usuarios" element={<UsersManagement />} />
