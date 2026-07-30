@@ -2,10 +2,38 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getInspection } from '@/services/inspections'
 import { getItemsByInspection, ItemRecord } from '@/services/items'
+import {
+  sendReportWithPhotos,
+  clearInspectionPhotos,
+  copyInspectionLink,
+} from '@/services/photo-cleanup'
 import { PhotoGallery } from '@/components/PhotoGallery'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Printer, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { useAuth } from '@/hooks/use-auth'
+import { toast } from 'sonner'
+import {
+  ArrowLeft,
+  Printer,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  Mail,
+  Link2,
+  Trash2,
+} from 'lucide-react'
 import { Inspection } from '@/lib/types'
 
 const STATUS_INFO: Record<string, { label: string; icon: typeof CheckCircle; color: string }> = {
@@ -17,51 +45,123 @@ const STATUS_INFO: Record<string, { label: string; icon: typeof CheckCircle; col
 export default function PrintReport() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [items, setItems] = useState<ItemRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const isAdmin = user?.role === 'admin'
+
+  const reloadData = async () => {
+    if (id) setItems(await getItemsByInspection(id))
+  }
 
   useEffect(() => {
     if (!id) return
     ;(async () => {
       try {
-        const insp = await getInspection(id)
-        const itemRecords = await getItemsByInspection(id)
-        setInspection(insp)
-        setItems(itemRecords)
+        setInspection(await getInspection(id))
+        setItems(await getItemsByInspection(id))
       } catch {
-        /* intentionally ignored */
+        /* ignored */
       } finally {
         setLoading(false)
       }
     })()
   }, [id])
 
-  if (loading) {
+  const handleSendReport = async () => {
+    if (!id) return
+    setSending(true)
+    const r = await sendReportWithPhotos(id, items)
+    toast[r.success ? 'success' : 'error'](r.message)
+    if (r.success) await reloadData()
+    setSending(false)
+  }
+
+  const handleClearPhotos = async () => {
+    if (!id) return
+    setClearing(true)
+    const r = await clearInspectionPhotos(id)
+    toast[r.success ? 'success' : 'error'](r.message)
+    if (r.success) await reloadData()
+    setClearing(false)
+  }
+
+  const handleCopyLink = () => {
+    if (!id) return
+    copyInspectionLink(id)
+    toast.success('Link copiado! Cole no WhatsApp para compartilhar.')
+  }
+
+  if (loading)
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
-  }
-  if (!inspection) {
+  if (!inspection)
     return <div className="p-8 text-center text-muted-foreground">Inspeção não encontrada.</div>
-  }
 
   const fmt = (d?: string) => (d ? new Date(d).toLocaleString('pt-BR') : '-')
   const fmtDur = (s?: number) => (s ? `${Math.floor(s / 60)}m ${s % 60}s` : '-')
+  const hasPhotos = items.some((i) => i.photos.length > 0)
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Button variant="ghost" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
-        <Button onClick={() => window.print()}>
-          <Printer className="w-4 h-4 mr-2" />
-          Imprimir / PDF
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={handleCopyLink} size="sm">
+            <Link2 className="w-4 h-4 mr-2" />
+            Copiar Link
+          </Button>
+          <Button onClick={handleSendReport} disabled={sending || !hasPhotos} size="sm">
+            {sending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Mail className="w-4 h-4 mr-2" />
+            )}
+            Enviar Relatório
+          </Button>
+          {isAdmin && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={clearing || !hasPhotos} size="sm">
+                  {clearing ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4 mr-2" />
+                  )}
+                  Limpar Fotos
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar limpeza de fotos</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação removerá permanentemente todas as fotos desta inspeção. Deseja
+                    continuar?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearPhotos}>
+                    Sim, remover todas
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          <Button variant="outline" onClick={() => window.print()} size="sm">
+            <Printer className="w-4 h-4 mr-2" />
+            Imprimir / PDF
+          </Button>
+        </div>
       </div>
 
       <Card className="print:border-0 print:shadow-none">
@@ -119,6 +219,11 @@ export default function PrintReport() {
                     <div>
                       <span className="text-muted-foreground text-xs">Item {idx + 1}</span>
                       <h4 className="font-semibold">{item.name}</h4>
+                      {item.sentAt && (
+                        <span className="text-xs text-muted-foreground">
+                          Fotos enviadas em: {fmt(item.sentAt)}
+                        </span>
+                      )}
                     </div>
                     <div className={`flex items-center gap-1.5 font-medium ${info.color}`}>
                       <Icon className="w-4 h-4" />

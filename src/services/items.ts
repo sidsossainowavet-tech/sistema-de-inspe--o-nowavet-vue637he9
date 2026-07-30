@@ -7,6 +7,7 @@ export interface ItemRecord {
   notes: string
   observations: string
   photos: string[]
+  sentAt?: string
 }
 
 function getFileUrl(record: any, filename: string): string {
@@ -30,6 +31,7 @@ export async function getItemsByInspection(inspectionId: string): Promise<ItemRe
     notes: r.notes || '',
     observations: r.observations || '',
     photos: (r.photos || []).map((f: string) => getFileUrl(r, f)),
+    sentAt: r.sent_at || undefined,
   }))
 }
 

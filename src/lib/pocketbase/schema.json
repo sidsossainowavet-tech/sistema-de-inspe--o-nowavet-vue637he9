@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-30T20:23:05.784Z",
+  "generatedAt": "2026-07-30T20:31:16.414Z",
   "collections": [
     {
       "name": "users",
@@ -431,6 +431,12 @@
           "type": "file",
           "required": false,
           "system": false
+        },
+        {
+          "name": "sent_at",
+          "type": "date",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -683,6 +689,69 @@
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_settings_key ON settings (key)"]
+    },
+    {
+      "name": "photo_send_log",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "item_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "items"
+        },
+        {
+          "name": "inspection_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "inspections"
+        },
+        {
+          "name": "sent_at",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "photos_deleted",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "method",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_photo_send_log_inspection_id ON photo_send_log (inspection_id)",
+        "CREATE INDEX idx_photo_send_log_item_id ON photo_send_log (item_id)"
+      ]
     }
   ]
 }

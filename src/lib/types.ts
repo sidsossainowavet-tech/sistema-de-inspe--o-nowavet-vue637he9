@@ -116,3 +116,12 @@ export interface Setting {
   key: string
   value: string
 }
+
+export interface PhotoSendLog {
+  id: string
+  itemId: string
+  inspectionId: string
+  sentAt: string
+  photosDeleted: boolean
+  method: string
+}
